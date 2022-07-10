@@ -104,7 +104,8 @@ class ExtractingBot(QObject):
     def closePair(self, driver):
         while True:
             is_closed = False
-            pairs = WebDriverWait(driver, 60).until(EC.presence_of_all_elements_located((By.CLASS_NAME, 'MuiTableRow-root')))[1:]
+
+            pairs = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.CLASS_NAME, 'MuiTableRow-root')))[1:]
 
             for pair in pairs:
                 is_closed = False
@@ -136,24 +137,23 @@ class ExtractingBot(QObject):
 
     def extract(self, driver):
         try:
-            pairs = WebDriverWait(driver, 60).until(EC.presence_of_all_elements_located((By.CLASS_NAME, 'MuiTableRow-root')))[1:]
+            pairs = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.CLASS_NAME, 'MuiTableRow-root')))[1:]
+
+            pair_list = []
+            change_list = []
+
+            for pair in pairs:
+                cells = pair.find_elements(By.CLASS_NAME, 'MuiTableCell-root')
+
+                name = cells[1].find_element(By.CLASS_NAME, 'two-row-cell').find_element(By.TAG_NAME, 'div').text.replace(' / ', '')
+                change = float(cells[3].text[:-1])
+
+                pair_list.append(name)
+                change_list.append(change)
+
+            self.progress.emit(pair_list, change_list, True)
         except:
             self.progress.emit(["No pairs"], [0], False)
-            return
-
-        pair_list = []
-        change_list = []
-
-        for pair in pairs:
-            cells = pair.find_elements(By.CLASS_NAME, 'MuiTableCell-root')
-
-            name = cells[1].find_element(By.CLASS_NAME, 'two-row-cell').find_element(By.TAG_NAME, 'div').text.replace(' / ', '')
-            change = float(cells[3].text[:-1])
-
-            pair_list.append(name)
-            change_list.append(change)
-
-        self.progress.emit(pair_list, change_list, True)
 
 class Ui(QtWidgets.QMainWindow):
     def __init__(self):
@@ -163,8 +163,8 @@ class Ui(QtWidgets.QMainWindow):
         self.mt_profit.setValidator(QDoubleValidator())
         self.mt_stoploss.setValidator(QDoubleValidator())
 
-        # self.initMT()
-        # self.initST()
+        self.initMT()
+        self.initST()
 
         self.statusBar.showMessage('Loading...')
 
@@ -232,20 +232,23 @@ class Ui(QtWidgets.QMainWindow):
                     existing_pairs.append(item.text())
                     existing_changes.append(changes[pairs.index(item.text())])
                 else:
-                    self.mt_table.setItem(row_index, 1, QtWidgets.QTableWidgetItem('0.00'))
+                    self.mt_table.setItem(row_index, 1, QtWidgets.QTableWidgetItem(''))
 
         if len(existing_changes) > 0:
             collective = sum(existing_changes) / len(existing_changes)
             self.mt_collective.setText("{:.2f}".format(collective))
 
-        st = float(self.mt_stoploss.text())
-        tp = float(self.mt_profit.text())
+        try:
+            st = float(self.mt_stoploss.text())
+            tp = float(self.mt_profit.text())
 
-        if collective <= st:
-            self.extracting_bot_worker.setClose(existing_pairs)
+            if collective <= st:
+                self.extracting_bot_worker.setClose(existing_pairs)
 
-        if collective >= tp:
-            self.extracting_bot_worker.setClose(existing_pairs)
+            if collective >= tp:
+                self.extracting_bot_worker.setClose(existing_pairs)
+        except:
+            pass
 
     def updateST(self, pairs, changes):
         row_count = self.st_table.rowCount()
@@ -266,7 +269,7 @@ class Ui(QtWidgets.QMainWindow):
                         if change >= float(tp.text()) or change <= float(sl.text()):
                             delete_pairs.append(item.text())
                 else:
-                    self.st_table.setItem(row_index, 1, QtWidgets.QTableWidgetItem('0.00'))
+                    self.st_table.setItem(row_index, 1, QtWidgets.QTableWidgetItem(''))
 
         self.extracting_bot_worker.setClose(delete_pairs)
 
