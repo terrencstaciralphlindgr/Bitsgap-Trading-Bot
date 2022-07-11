@@ -1,6 +1,5 @@
-import csv
 import sys
-from datetime import datetime
+import matplotlib.pyplot as plt
 from PyQt6 import uic, QtWidgets
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
 from PyQt6.QtGui import QDoubleValidator
@@ -12,8 +11,13 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.common.exceptions import StaleElementReferenceException
+from selenium.common.exceptions import StaleElementReferenceException, TimeoutException
 from time import sleep
+
+track = {
+    'MT': [],
+    'ST': []
+}
 
 class ExtractingBot(QObject):
     progress = pyqtSignal(list, list, bool)
@@ -105,8 +109,11 @@ class ExtractingBot(QObject):
         while True:
             is_closed = False
 
-            pairs = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.CLASS_NAME, 'MuiTableRow-root')))[1:]
-
+            try:
+                pairs = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.CLASS_NAME, 'MuiTableRow-root')))[1:]
+            except TimeoutException:
+                pairs = []
+                
             for pair in pairs:
                 is_closed = False
                 cells = pair.find_elements(By.CLASS_NAME, 'MuiTableCell-root')
@@ -115,11 +122,14 @@ class ExtractingBot(QObject):
 
                 for pair_name in self.close_list:
                     if name == pair_name:
-                        driver.execute_script("arguments[0].click();", cells[-1].find_elements(By.TAG_NAME, 'button')[-1])
-                        driver.execute_script("arguments[0].click();", driver.find_element(By.XPATH, '//button[@class="aQXLoSia4k1esjIDAFwW zhVSsYrxjm8vd8ihxSUs MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButtonBase-root  css-pev4aq"]'))
-                        driver.execute_script("arguments[0].click();", driver.find_elements(By.XPATH, '//li[@class="yh3uTjDDJTvbuAZD9i_M jj5mPys2QhRB6omDdQP4 MuiMenuItem-root MuiMenuItem-gutters MuiButtonBase-root css-17cm1p2"]')[1])
-                        confirm = driver.find_element(By.XPATH, '//button[@data-test="bot-preview-confirm-button"]')
-                        driver.execute_script("arguments[0].click();", confirm)
+                        try:
+                            driver.execute_script("arguments[0].click();", cells[-1].find_elements(By.TAG_NAME, 'button')[-1])
+                            driver.execute_script("arguments[0].click();", driver.find_element(By.XPATH, '//button[@class="aQXLoSia4k1esjIDAFwW zhVSsYrxjm8vd8ihxSUs MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButtonBase-root  css-pev4aq"]'))
+                            driver.execute_script("arguments[0].click();", driver.find_elements(By.XPATH, '//li[@class="yh3uTjDDJTvbuAZD9i_M jj5mPys2QhRB6omDdQP4 MuiMenuItem-root MuiMenuItem-gutters MuiButtonBase-root css-17cm1p2"]')[1])
+                            confirm = driver.find_element(By.XPATH, '//button[@data-test="bot-preview-confirm-button"]')
+                            driver.execute_script("arguments[0].click();", confirm)
+                        except:
+                            pass
 
                         is_closed = True
                         
@@ -153,6 +163,7 @@ class ExtractingBot(QObject):
 
             self.progress.emit(pair_list, change_list, True)
         except:
+            self.progress.emit([], [], True)
             self.progress.emit(["No pairs"], [0], False)
 
 class Ui(QtWidgets.QMainWindow):
@@ -217,61 +228,92 @@ class Ui(QtWidgets.QMainWindow):
         
         st_pair_file.close()
 
+    def viewChart(self):
+        row_count = self.mt_table_rowCount()
+        pairs = []
+
+        for row_index in range(row_count):
+            item = self.mt_table.item(row_index, 0)
+
+            if item:
+                if item.text() != "":
+                    pairs.append(item.text())
+
+        
+
     def updateMT(self, pairs, changes):
         row_count = self.mt_table.rowCount()
         existing_changes = []
         existing_pairs = []
         collective = 0
+        global track
+        data = {
+            'Exist': False
+        }
         
         for row_index in range(row_count):
             item = self.mt_table.item(row_index, 0)
             
             if item:
-                if item.text() in pairs:
+                if item.text() != "" and item.text() in pairs:
                     self.mt_table.setItem(row_index, 1, QtWidgets.QTableWidgetItem('{:.2f}'.format(changes[pairs.index(item.text())])))
+                    data[item.text()] = changes[pairs.index(item.text())]
+                    data['Exist'] = True
                     existing_pairs.append(item.text())
                     existing_changes.append(changes[pairs.index(item.text())])
                 else:
-                    self.mt_table.setItem(row_index, 1, QtWidgets.QTableWidgetItem(''))
+                    for col_index in range(1):
+                        self.mt_table.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(''))
 
         if len(existing_changes) > 0:
             collective = sum(existing_changes) / len(existing_changes)
-            self.mt_collective.setText("{:.2f}".format(collective))
 
-        try:
-            st = float(self.mt_stoploss.text())
-            tp = float(self.mt_profit.text())
+        self.mt_collective.setText("{:.2f}".format(collective))
+        data['collective'] = collective
 
-            if collective <= st:
-                self.extracting_bot_worker.setClose(existing_pairs)
+        track['MT'].append(data)
 
-            if collective >= tp:
-                self.extracting_bot_worker.setClose(existing_pairs)
-        except:
-            pass
+        st = float(self.mt_stoploss.text())
+        tp = float(self.mt_profit.text())
+
+        if collective <= st:
+            self.extracting_bot_worker.setClose(existing_pairs)
+
+        if collective >= tp:
+            self.extracting_bot_worker.setClose(existing_pairs)
 
     def updateST(self, pairs, changes):
         row_count = self.st_table.rowCount()
         delete_pairs = []
+        global track
+        data = {
+            'Exist': False
+        }
         
         for row_index in range(row_count):
             item = self.st_table.item(row_index, 0)
             
             if item:
-                if item.text() in pairs:
+                if item.text() != "" and item.text() in pairs:
                     self.st_table.setItem(row_index, 1, QtWidgets.QTableWidgetItem('{:.2f}'.format(changes[pairs.index(item.text())])))
-
+                    data[item.text()] = changes[pairs.index(item.text())]
+                    data['Exist'] = True
                     change = changes[pairs.index(item.text())]
                     tp = self.st_table.item(row_index, 2)
                     sl = self.st_table.item(row_index, 3)
 
                     if tp and sl:
-                        if change >= float(tp.text()) or change <= float(sl.text()):
-                            delete_pairs.append(item.text())
+                        if tp != "" and sl != "":
+                            if change >= float(tp.text()) or change <= float(sl.text()):
+                                delete_pairs.append(item.text())
                 else:
-                    self.st_table.setItem(row_index, 1, QtWidgets.QTableWidgetItem(''))
+                    for col_index in range(5):
+                        self.st_table.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(''))
 
-        self.extracting_bot_worker.setClose(delete_pairs)
+        track['ST'].append(data)
+
+        if len(delete_pairs) > 0:
+            self.extracting_bot_worker.setClose(delete_pairs)
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)

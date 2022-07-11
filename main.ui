@@ -9,7 +9,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
+    <width>781</width>
     <height>610</height>
    </rect>
   </property>
@@ -21,13 +21,13 @@
   </property>
   <property name="minimumSize">
    <size>
-    <width>800</width>
+    <width>781</width>
     <height>610</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
-    <width>800</width>
+    <width>781</width>
     <height>610</height>
    </size>
   </property>
@@ -257,7 +257,7 @@
       </font>
      </property>
      <property name="text">
-      <string>Create chart</string>
+      <string>View Chart</string>
      </property>
     </widget>
     <widget class="QGroupBox" name="groupBox_3">
