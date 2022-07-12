@@ -89,17 +89,20 @@ class ExtractingBot(QObject):
         self.progress.emit(['Loading finished!'], [0], False)
 
         while True:
-            if not self.is_closing:
-                self.progress.emit(['Extracting change...'], [0], False)
+            try:
+                if not self.is_closing:
+                    self.progress.emit(['Extracting change...'], [0], False)
 
-                self.extract(driver)
-                sleep(10)
-            else:
-                self.progress.emit(["Closing pairs..."], [0], False)
+                    self.extract(driver)
+                    sleep(10)
+                else:
+                    self.progress.emit(["Closing pairs..."], [0], False)
 
-                self.closePair(driver)
+                    self.closePair(driver)
 
-                self.is_closing = False
+                    self.is_closing = False
+            except:
+                pass
 
     def setClose(self, pairs):
         self.is_closing = True
@@ -147,7 +150,7 @@ class ExtractingBot(QObject):
 
     def extract(self, driver):
         try:
-            pairs = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.CLASS_NAME, 'MuiTableRow-root')))[1:]
+            pairs = WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.CLASS_NAME, 'MuiTableRow-root')))[1:]
 
             pair_list = []
             change_list = []
@@ -173,6 +176,7 @@ class Ui(QtWidgets.QMainWindow):
 
         self.mt_profit.setValidator(QDoubleValidator())
         self.mt_stoploss.setValidator(QDoubleValidator())
+        self.mt_viewchart.clicked.connect(self.viewMTChart)
 
         self.initMT()
         self.initST()
@@ -228,18 +232,62 @@ class Ui(QtWidgets.QMainWindow):
         
         st_pair_file.close()
 
-    def viewChart(self):
-        row_count = self.mt_table_rowCount()
-        pairs = []
+    def clearMTChart(self):
+        global track
+        track['MT'] = []
 
-        for row_index in range(row_count):
-            item = self.mt_table.item(row_index, 0)
+    def viewMTChart(self):
+        graphs = {}
 
-            if item:
-                if item.text() != "":
-                    pairs.append(item.text())
+        for key in track['MT'][-1].keys():
+            if key != "Exist" and key!= "collective":
+                graphs[key] = []
 
-        
+        for step in track['MT']:
+            if step['Exist']:
+                for key in graphs.keys():
+                    try:
+                        graphs[key].append(step[key])
+                    except:
+                        graphs[key].append(0)
+
+        for key in graphs.keys():
+            plt.plot(graphs[key])
+
+        plt.show()
+            
+    def viewSTChart(self):
+        graph = []
+
+        button = QtWidgets.QApplication.focusWidget()
+        index = self.st_table.indexAt(button.pos())
+
+        if index.isValid():
+            row_index = index.row()
+
+        pair = self.st_table.item(row_index, 0).text()
+
+        for step in track['ST']:
+            if pair in step.keys():
+                graph.append(step[pair])
+            else:
+                graph.append(0)
+
+        plt.plot(graph)
+        plt.show()
+
+    def clearSTChart(self):
+        button = QtWidgets.QApplication.focusWidget()
+        index = self.st_table.indexAt(button.pos())
+
+        if index.isValid():
+            row_index = index.row()
+
+        pair = self.st_table.item(row_index, 0).text()
+
+        for step in track['ST']:
+            if pair in step.keys():
+                step.pop(pair, None)
 
     def updateMT(self, pairs, changes):
         row_count = self.mt_table.rowCount()
@@ -262,8 +310,7 @@ class Ui(QtWidgets.QMainWindow):
                     existing_pairs.append(item.text())
                     existing_changes.append(changes[pairs.index(item.text())])
                 else:
-                    for col_index in range(1):
-                        self.mt_table.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(''))
+                    self.mt_table.setItem(row_index, 1, QtWidgets.QTableWidgetItem(''))
 
         if len(existing_changes) > 0:
             collective = sum(existing_changes) / len(existing_changes)
@@ -279,8 +326,14 @@ class Ui(QtWidgets.QMainWindow):
         if collective <= st:
             self.extracting_bot_worker.setClose(existing_pairs)
 
+            for col_index in range(2):
+                self.mt_table.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(''))
+
         if collective >= tp:
             self.extracting_bot_worker.setClose(existing_pairs)
+
+            for col_index in range(2):
+                self.mt_table.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(''))
 
     def updateST(self, pairs, changes):
         row_count = self.st_table.rowCount()
@@ -295,7 +348,16 @@ class Ui(QtWidgets.QMainWindow):
             
             if item:
                 if item.text() != "" and item.text() in pairs:
+                    chart_btn = QtWidgets.QPushButton("Show")
+                    chart_btn.clicked.connect(self.viewSTChart)
+
+                    clear_btn = QtWidgets.QPushButton("Clear")
+                    clear_btn.clicked.connect(self.clearSTChart)
+
                     self.st_table.setItem(row_index, 1, QtWidgets.QTableWidgetItem('{:.2f}'.format(changes[pairs.index(item.text())])))
+                    self.st_table.setCellWidget(row_index, 4, chart_btn)
+                    self.st_table.setCellWidget(row_index, 5, clear_btn)
+
                     data[item.text()] = changes[pairs.index(item.text())]
                     data['Exist'] = True
                     change = changes[pairs.index(item.text())]
@@ -306,9 +368,18 @@ class Ui(QtWidgets.QMainWindow):
                         if tp != "" and sl != "":
                             if change >= float(tp.text()) or change <= float(sl.text()):
                                 delete_pairs.append(item.text())
+
+                                for col_index in range(4):
+                                    self.st_table.setItem(row_index, col_index, None)
+                                
+                                self.st_table.setCellWidget(row_index, 4, None)
+                                self.st_table.setCellWidget(row_index, 5, None)
                 else:
-                    for col_index in range(5):
-                        self.st_table.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(''))
+                    for col_index in range(1, 4):
+                        self.st_table.setItem(row_index, col_index, None)
+                    
+                    self.st_table.setCellWidget(row_index, 4, None)
+                    self.st_table.setCellWidget(row_index, 5, None)
 
         track['ST'].append(data)
 

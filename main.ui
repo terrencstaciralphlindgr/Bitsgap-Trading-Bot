@@ -9,8 +9,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>781</width>
-    <height>610</height>
+    <width>861</width>
+    <height>726</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -21,14 +21,14 @@
   </property>
   <property name="minimumSize">
    <size>
-    <width>781</width>
-    <height>610</height>
+    <width>861</width>
+    <height>726</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
-    <width>781</width>
-    <height>610</height>
+    <width>861</width>
+    <height>726</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -41,7 +41,7 @@
       <x>10</x>
       <y>10</y>
       <width>291</width>
-      <height>571</height>
+      <height>691</height>
      </rect>
     </property>
     <property name="title">
@@ -53,7 +53,7 @@
        <x>10</x>
        <y>20</y>
        <width>271</width>
-       <height>391</height>
+       <height>531</height>
       </rect>
      </property>
      <property name="dragDropMode">
@@ -210,7 +210,7 @@
      <property name="geometry">
       <rect>
        <x>80</x>
-       <y>480</y>
+       <y>610</y>
        <width>101</width>
        <height>21</height>
       </rect>
@@ -228,7 +228,7 @@
      <property name="geometry">
       <rect>
        <x>180</x>
-       <y>480</y>
+       <y>610</y>
        <width>41</width>
        <height>21</height>
       </rect>
@@ -242,12 +242,12 @@
       <string>0</string>
      </property>
     </widget>
-    <widget class="QPushButton" name="mt_createchart">
+    <widget class="QPushButton" name="mt_viewchart">
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>510</y>
-       <width>271</width>
+       <y>640</y>
+       <width>131</width>
        <height>41</height>
       </rect>
      </property>
@@ -264,7 +264,7 @@
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>430</y>
+       <y>560</y>
        <width>131</width>
        <height>41</height>
       </rect>
@@ -301,9 +301,9 @@
     <widget class="QGroupBox" name="groupBox_4">
      <property name="geometry">
       <rect>
-       <x>160</x>
-       <y>430</y>
-       <width>121</width>
+       <x>150</x>
+       <y>560</y>
+       <width>131</width>
        <height>41</height>
       </rect>
      </property>
@@ -318,7 +318,7 @@
        <rect>
         <x>0</x>
         <y>20</y>
-        <width>121</width>
+        <width>131</width>
         <height>21</height>
        </rect>
       </property>
@@ -336,14 +336,32 @@
       </property>
      </widget>
     </widget>
+    <widget class="QPushButton" name="mt_clearchart">
+     <property name="geometry">
+      <rect>
+       <x>150</x>
+       <y>640</y>
+       <width>131</width>
+       <height>41</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <pointsize>12</pointsize>
+      </font>
+     </property>
+     <property name="text">
+      <string>Clear Chart</string>
+     </property>
+    </widget>
    </widget>
    <widget class="QGroupBox" name="groupBox_2">
     <property name="geometry">
      <rect>
       <x>320</x>
       <y>10</y>
-      <width>451</width>
-      <height>571</height>
+      <width>531</width>
+      <height>691</height>
      </rect>
     </property>
     <property name="title">
@@ -354,8 +372,8 @@
       <rect>
        <x>10</x>
        <y>20</y>
-       <width>431</width>
-       <height>541</height>
+       <width>511</width>
+       <height>661</height>
       </rect>
      </property>
      <property name="selectionMode">
@@ -368,7 +386,7 @@
       <number>100</number>
      </property>
      <property name="columnCount">
-      <number>5</number>
+      <number>6</number>
      </property>
      <attribute name="horizontalHeaderDefaultSectionSize">
       <number>76</number>
@@ -502,6 +520,11 @@
      <column>
       <property name="text">
        <string>Chart</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Clear</string>
       </property>
      </column>
     </widget>

@@ -3,13 +3,13 @@
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
   <property name="enabled">
-   <bool>false</bool>
+   <bool>true</bool>
   </property>
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
+    <width>861</width>
     <height>610</height>
    </rect>
   </property>
@@ -21,13 +21,13 @@
   </property>
   <property name="minimumSize">
    <size>
-    <width>800</width>
+    <width>861</width>
     <height>610</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
-    <width>800</width>
+    <width>861</width>
     <height>610</height>
    </size>
   </property>
@@ -55,6 +55,12 @@
        <width>271</width>
        <height>391</height>
       </rect>
+     </property>
+     <property name="dragDropMode">
+      <enum>QAbstractItemView::NoDragDrop</enum>
+     </property>
+     <property name="defaultDropAction">
+      <enum>Qt::IgnoreAction</enum>
      </property>
      <property name="selectionMode">
       <enum>QAbstractItemView::ExtendedSelection</enum>
@@ -200,44 +206,6 @@
       </property>
      </column>
     </widget>
-    <widget class="QLineEdit" name="mt_profit">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>430</y>
-       <width>131</width>
-       <height>31</height>
-      </rect>
-     </property>
-     <property name="font">
-      <font>
-       <pointsize>12</pointsize>
-       <italic>false</italic>
-      </font>
-     </property>
-     <property name="placeholderText">
-      <string>Take profit...</string>
-     </property>
-    </widget>
-    <widget class="QLineEdit" name="mt_stoploss">
-     <property name="geometry">
-      <rect>
-       <x>162</x>
-       <y>430</y>
-       <width>121</width>
-       <height>31</height>
-      </rect>
-     </property>
-     <property name="font">
-      <font>
-       <pointsize>12</pointsize>
-       <italic>false</italic>
-      </font>
-     </property>
-     <property name="placeholderText">
-      <string>Stop loss...</string>
-     </property>
-    </widget>
     <widget class="QLabel" name="label">
      <property name="geometry">
       <rect>
@@ -274,12 +242,12 @@
       <string>0</string>
      </property>
     </widget>
-    <widget class="QPushButton" name="mt_createchart">
+    <widget class="QPushButton" name="mt_viewchart">
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>520</y>
-       <width>271</width>
+       <y>510</y>
+       <width>131</width>
        <height>41</height>
       </rect>
      </property>
@@ -289,7 +257,101 @@
       </font>
      </property>
      <property name="text">
-      <string>Create chart</string>
+      <string>View Chart</string>
+     </property>
+    </widget>
+    <widget class="QGroupBox" name="groupBox_3">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>430</y>
+       <width>131</width>
+       <height>41</height>
+      </rect>
+     </property>
+     <property name="title">
+      <string>Take Profit</string>
+     </property>
+     <property name="flat">
+      <bool>true</bool>
+     </property>
+     <widget class="QLineEdit" name="mt_profit">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>20</y>
+        <width>131</width>
+        <height>21</height>
+       </rect>
+      </property>
+      <property name="font">
+       <font>
+        <pointsize>10</pointsize>
+        <italic>false</italic>
+       </font>
+      </property>
+      <property name="text">
+       <string>2</string>
+      </property>
+      <property name="placeholderText">
+       <string/>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QGroupBox" name="groupBox_4">
+     <property name="geometry">
+      <rect>
+       <x>150</x>
+       <y>430</y>
+       <width>131</width>
+       <height>41</height>
+      </rect>
+     </property>
+     <property name="title">
+      <string>Stop Loss</string>
+     </property>
+     <property name="flat">
+      <bool>true</bool>
+     </property>
+     <widget class="QLineEdit" name="mt_stoploss">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>20</y>
+        <width>131</width>
+        <height>21</height>
+       </rect>
+      </property>
+      <property name="font">
+       <font>
+        <pointsize>10</pointsize>
+        <italic>false</italic>
+       </font>
+      </property>
+      <property name="text">
+       <string>-2</string>
+      </property>
+      <property name="placeholderText">
+       <string/>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QPushButton" name="mt_clearchart">
+     <property name="geometry">
+      <rect>
+       <x>150</x>
+       <y>510</y>
+       <width>131</width>
+       <height>41</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <pointsize>12</pointsize>
+      </font>
+     </property>
+     <property name="text">
+      <string>Clear Chart</string>
      </property>
     </widget>
    </widget>
@@ -298,7 +360,7 @@
      <rect>
       <x>320</x>
       <y>10</y>
-      <width>451</width>
+      <width>531</width>
       <height>571</height>
      </rect>
     </property>
@@ -310,7 +372,7 @@
       <rect>
        <x>10</x>
        <y>20</y>
-       <width>431</width>
+       <width>511</width>
        <height>541</height>
       </rect>
      </property>
@@ -324,7 +386,7 @@
       <number>100</number>
      </property>
      <property name="columnCount">
-      <number>5</number>
+      <number>6</number>
      </property>
      <attribute name="horizontalHeaderDefaultSectionSize">
       <number>76</number>
@@ -458,6 +520,11 @@
      <column>
       <property name="text">
        <string>Chart</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Clear</string>
       </property>
      </column>
     </widget>
