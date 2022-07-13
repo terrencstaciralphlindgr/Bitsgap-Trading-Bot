@@ -130,7 +130,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "Bitsgap Bot Manager"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "Bitsgap Bot Manager - Demo"))
         self.groupBox.setTitle(_translate("MainWindow", "MULTIPLE TRADES"))
         item = self.mt_table.horizontalHeaderItem(0)
         item.setText(_translate("MainWindow", "Pair"))

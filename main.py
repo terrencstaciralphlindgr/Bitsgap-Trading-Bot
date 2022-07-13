@@ -1,5 +1,12 @@
 import sys
 import matplotlib.pyplot as plt
+import matplotlib.dates as md
+import winsound
+from matplotlib.ticker import MaxNLocator
+from matplotlib.dates import HourLocator, MinuteLocator, SecondLocator
+# from playsound import playsound
+from openpyxl import load_workbook, Workbook
+from datetime import datetime
 from PyQt6 import uic, QtWidgets
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
 from PyQt6.QtGui import QDoubleValidator
@@ -14,10 +21,28 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import StaleElementReferenceException, TimeoutException
 from time import sleep
 
+def alarm():
+    duration = 500
+    freq = 750
+
+    for _ in range(3):
+        winsound.Beep(freq, duration)
+
+try:
+    wb = load_workbook('Closed Trades.xlsx')
+    ws = wb.worksheets[0]
+except FileNotFoundError:
+    headers_row = ["Pair", "Category", "Date", "Time", "Change % on closure", "Close Condition", "TP", "SL", "Collective"]
+    wb = Workbook()
+    ws = wb.active
+    ws.append(headers_row)
+
 track = {
     'MT': [],
     'ST': []
 }
+
+bot_start_date = datetime.today()
 
 class ExtractingBot(QObject):
     progress = pyqtSignal(list, list, bool)
@@ -149,9 +174,9 @@ class ExtractingBot(QObject):
                 break
 
     def extract(self, driver):
-        try:
-            pairs = WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.CLASS_NAME, 'MuiTableRow-root')))[1:]
+        pairs = driver.find_elements(By.CLASS_NAME, 'MuiTableRow-root')[1:]
 
+        if len(pairs) > 0:
             pair_list = []
             change_list = []
 
@@ -165,7 +190,7 @@ class ExtractingBot(QObject):
                 change_list.append(change)
 
             self.progress.emit(pair_list, change_list, True)
-        except:
+        else:
             self.progress.emit([], [], True)
             self.progress.emit(["No pairs"], [0], False)
 
@@ -177,9 +202,10 @@ class Ui(QtWidgets.QMainWindow):
         self.mt_profit.setValidator(QDoubleValidator())
         self.mt_stoploss.setValidator(QDoubleValidator())
         self.mt_viewchart.clicked.connect(self.viewMTChart)
+        self.mt_clearchart.clicked.connect(self.clearMTChart)
 
         self.initMT()
-        self.initST()
+        self.initSL()
 
         self.statusBar.showMessage('Loading...')
 
@@ -223,7 +249,7 @@ class Ui(QtWidgets.QMainWindow):
         
         mt_pair_file.close()
 
-    def initST(self):
+    def initSL(self):
         st_pair_file = open('single.txt', 'r')
         st_pairs = st_pair_file.readlines()
         
@@ -236,28 +262,62 @@ class Ui(QtWidgets.QMainWindow):
         global track
         track['MT'] = []
 
-    def viewMTChart(self):
+    def viewMTChart(self, is_export):
         graphs = {}
+        tp = []
+        sl = []
+        timestamps = []
 
-        for key in track['MT'][-1].keys():
-            if key != "Exist" and key!= "collective":
-                graphs[key] = []
+        if len(track['MT']) > 0:
+            for key in track['MT'][-1].keys():
+                if key != "Exist" and key != 'timestamp':
+                    graphs[key] = []
 
-        for step in track['MT']:
-            if step['Exist']:
-                for key in graphs.keys():
-                    try:
-                        graphs[key].append(step[key])
-                    except:
-                        graphs[key].append(0)
+            for index in range(len(track['MT'])):
+                if track['MT'][index]['Exist']:
+                    timestamps.append(track['MT'][index]['timestamp'])
+                    tp.append(float(self.mt_profit.text()))
+                    sl.append(float(self.mt_stoploss.text()))
+                    for key in graphs.keys():
+                        try:
+                            graphs[key].append(track['MT'][index][key])
+                        except:
+                            graphs[key].append(0)
 
-        for key in graphs.keys():
-            plt.plot(graphs[key])
+            plt.figure('Multiple chart')
 
-        plt.show()
+            datenums = md.date2num(timestamps)
+
+            ax = plt.gca()
+            xfmt = md.DateFormatter('%m-%d %H:%M:%S')
+            # plt.xlim(datetime(bot_start_date.year, bot_start_date.month, bot_start_date.day, 0, 0, 0), datetime(datetime.today().year, datetime.today().month, datetime.today().day, 23, 59, 59))
+            ax.xaxis.set_major_formatter(xfmt)
+            ax.xaxis.set_major_locator(SecondLocator(bysecond=range(60), interval=10, tz=None))
+            ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+            
+            plt.xticks(rotation=25)
+
+            for key in graphs.keys():
+                if key != "collective":
+                    plt.plot(datenums, graphs[key], label=key)
+
+            plt.plot(datenums, graphs['collective'], label='collective', linewidth=4)
+            plt.plot(datenums, tp, label='TP', linewidth=4)
+            plt.plot(datenums, sl, label='SL', linewidth=4)
+
+            plt.legend(loc='lower right')
+            plt.grid()
+
+            if is_export:
+                plt.savefig()
+            else:
+                plt.show()
             
     def viewSTChart(self):
         graph = []
+        tp = []
+        sl = []
+        timestamps = []
 
         button = QtWidgets.QApplication.focusWidget()
         index = self.st_table.indexAt(button.pos())
@@ -267,14 +327,41 @@ class Ui(QtWidgets.QMainWindow):
 
         pair = self.st_table.item(row_index, 0).text()
 
-        for step in track['ST']:
-            if pair in step.keys():
-                graph.append(step[pair])
-            else:
-                graph.append(0)
+        for index in range(len(track['ST'])):
+            if pair in track['ST'][index].keys():
+                try:
+                    tp.append(float(self.st_table.item(row_index, 2).text()))
+                except:
+                    tp.append(0)
 
-        plt.plot(graph)
-        plt.show()
+                try:
+                    sl.append(float(self.st_table.item(row_index, 3).text()))
+                except:
+                    sl.append(0)
+
+                timestamps.append(track['ST'][index]['timestamp'])
+                graph.append(track['ST'][index][pair])
+
+        if len(graph) > 0:
+            plt.figure(pair)
+
+            datenums = md.date2num(timestamps)
+
+            ax = plt.gca()
+            xfmt = md.DateFormatter('%m-%d %H:%M:%S')
+            ax.xaxis.set_major_formatter(xfmt)
+            # plt.xlim(datetime(bot_start_date.year, bot_start_date.month, bot_start_date.day, 0, 0, 0), datetime(datetime.today().year, datetime.today().month, datetime.today().day, 23, 59, 59))
+            ax.xaxis.set_major_locator(SecondLocator(bysecond=range(60), interval=10, tz=None))
+            ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+
+            plt.xticks(rotation=25)
+
+            plt.plot(datenums, graph, label=pair)
+            plt.plot(datenums, tp, label='TP', linewidth=4)
+            plt.plot(datenums, sl, label='SL', linewidth=4)
+            plt.legend(loc='lower right')
+            plt.grid()
+            plt.show()
 
     def clearSTChart(self):
         button = QtWidgets.QApplication.focusWidget()
@@ -317,24 +404,72 @@ class Ui(QtWidgets.QMainWindow):
 
         self.mt_collective.setText("{:.2f}".format(collective))
         data['collective'] = collective
+        data['timestamp'] = datetime.now()
 
         track['MT'].append(data)
 
-        st = float(self.mt_stoploss.text())
-        tp = float(self.mt_profit.text())
+        if self.mt_stoploss.text() != "" and self.mt_profit.text() != "" and self.mt_stoploss.text() != "." and self.mt_profit.text() != ".":
+            sl = float(self.mt_stoploss.text())
+            tp = float(self.mt_profit.text())
 
-        if collective <= st:
-            self.extracting_bot_worker.setClose(existing_pairs)
+            if collective <= sl:
+                alarm()
+                for pair in existing_pairs:
+                    for row_index in range(self.mt_table.rowCount()):
+                        if self.mt_table.item(row_index, 0):
+                            if self.mt_table.item(row_index, 0).text() == pair:
+                                log_data = [pair, "multiple"]
 
-            for col_index in range(2):
-                self.mt_table.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(''))
+                                current_datetime = datetime.now()
 
-        if collective >= tp:
-            self.extracting_bot_worker.setClose(existing_pairs)
+                                current_date = current_datetime.strftime('%Y-%m-%d')
+                                current_time = current_datetime.strftime('%H:%M:%S')
 
-            for col_index in range(2):
-                self.mt_table.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(''))
+                                log_data.append(current_date)
+                                log_data.append(current_time)
+                                log_data.append(float(self.mt_table.item(row_index, 1).text()))
+                                log_data.append("Hit SL")
+                                log_data.append(tp)
+                                log_data.append(sl)
+                                log_data.append(collective)
 
+                                ws.append(log_data)
+                                wb.save('Closed Trades.xlsx')
+
+                                for col_index in range(2):
+                                    self.mt_table.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(''))
+
+                self.extracting_bot_worker.setClose(existing_pairs)
+
+            if collective >= tp:
+                alarm()
+                for pair in existing_pairs:
+                    for row_index in range(self.mt_table.rowCount()):
+                        if self.mt_table.item(row_index, 0):
+                            if self.mt_table.item(row_index, 0).text() == pair:
+                                log_data = [pair, "multiple"]
+
+                                current_datetime = datetime.now()
+
+                                current_date = current_datetime.strftime('%Y-%m-%d')
+                                current_time = current_datetime.strftime('%H:%M:%S')
+
+                                log_data.append(current_date)
+                                log_data.append(current_time)
+                                log_data.append(float(self.mt_table.item(row_index, 1).text()))
+                                log_data.append("Hit TP")
+                                log_data.append(tp)
+                                log_data.append(sl)
+                                log_data.append(collective)
+
+                                ws.append(log_data)
+                                wb.save('Closed Trades.xlsx')
+
+                                for col_index in range(2):
+                                    self.mt_table.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(''))
+
+                self.extracting_bot_worker.setClose(existing_pairs)
+                                
     def updateST(self, pairs, changes):
         row_count = self.st_table.rowCount()
         delete_pairs = []
@@ -365,15 +500,10 @@ class Ui(QtWidgets.QMainWindow):
                     sl = self.st_table.item(row_index, 3)
 
                     if tp and sl:
-                        if tp != "" and sl != "":
+                        if tp.text() != "" and tp.text() != "." and sl.text() != "" and sl.text() != ".":
                             if change >= float(tp.text()) or change <= float(sl.text()):
+                                alarm()
                                 delete_pairs.append(item.text())
-
-                                for col_index in range(4):
-                                    self.st_table.setItem(row_index, col_index, None)
-                                
-                                self.st_table.setCellWidget(row_index, 4, None)
-                                self.st_table.setCellWidget(row_index, 5, None)
                 else:
                     for col_index in range(1, 4):
                         self.st_table.setItem(row_index, col_index, None)
@@ -381,12 +511,54 @@ class Ui(QtWidgets.QMainWindow):
                     self.st_table.setCellWidget(row_index, 4, None)
                     self.st_table.setCellWidget(row_index, 5, None)
 
+        data['timestamp'] = datetime.now()
         track['ST'].append(data)
 
         if len(delete_pairs) > 0:
+            for pair in delete_pairs:
+                for row_index in range(self.st_table.rowCount()):
+                    if self.st_table.item(row_index, 0):
+                        if self.st_table.item(row_index, 0).text() == pair:
+                            log_data = [pair, "single"]
+
+                            current_datetime = datetime.now()
+
+                            current_date = current_datetime.strftime('%Y-%m-%d')
+                            current_time = current_datetime.strftime('%H:%M:%S')
+
+                            log_data.append(current_date)
+                            log_data.append(current_time)
+
+                            change = float(self.st_table.item(row_index, 1).text())
+                            tp = float(self.st_table.item(row_index, 2).text())
+                            sl = float(self.st_table.item(row_index, 3).text())
+
+                            log_data.append(change)
+
+                            if change >= tp:
+                                log_data.append("Hit TP")
+                                log_data.append(tp)
+                                log_data.append(sl)
+                            
+                            if change <= sl:
+                                log_data.append("Hit SL")
+                                log_data.append(tp)
+                                log_data.append(sl)
+
+                            ws.append(log_data)
+                            wb.save('Closed Trades.xlsx')
+
+                            for col_index in range(4):
+                                self.st_table.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(''))
+
+                            self.st_table.setCellWidget(row_index, 4, None)
+                            self.st_table.setCellWidget(row_index, 5, None)
+
             self.extracting_bot_worker.setClose(delete_pairs)
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
     window = Ui()
     app.exec()
+
+    wb.close()
