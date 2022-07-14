@@ -1,3 +1,4 @@
+import os
 import sys
 import matplotlib.pyplot as plt
 import matplotlib.dates as md
@@ -43,6 +44,10 @@ track = {
 }
 
 bot_start_date = datetime.today()
+chart_dir = 'charts'
+
+if not os.path.exists(chart_dir):
+    os.mkdir(chart_dir)
 
 class ExtractingBot(QObject):
     progress = pyqtSignal(list, list, bool)
@@ -262,7 +267,7 @@ class Ui(QtWidgets.QMainWindow):
         global track
         track['MT'] = []
 
-    def viewMTChart(self, is_export):
+    def viewMTChart(self, is_export=False):
         graphs = {}
         tp = []
         sl = []
@@ -309,21 +314,25 @@ class Ui(QtWidgets.QMainWindow):
             plt.grid()
 
             if is_export:
-                plt.savefig()
+                fname = datetime.now().strftime('%Y_%m_%d_%H_%M_%S') + '.png'
+                plt.savefig(os.path.join(chart_dir, fname))
             else:
                 plt.show()
             
-    def viewSTChart(self):
+    def viewSTChart(self, is_export=False, r_index=0):
         graph = []
         tp = []
         sl = []
         timestamps = []
 
-        button = QtWidgets.QApplication.focusWidget()
-        index = self.st_table.indexAt(button.pos())
+        if not is_export:
+            button = QtWidgets.QApplication.focusWidget()
+            index = self.st_table.indexAt(button.pos())
 
-        if index.isValid():
-            row_index = index.row()
+            if index.isValid():
+                row_index = index.row()
+        else:
+            row_index = r_index
 
         pair = self.st_table.item(row_index, 0).text()
 
@@ -361,7 +370,12 @@ class Ui(QtWidgets.QMainWindow):
             plt.plot(datenums, sl, label='SL', linewidth=4)
             plt.legend(loc='lower right')
             plt.grid()
-            plt.show()
+
+            if is_export:
+                fname = datetime.now().strftime('%Y_%m_%d_%H_%M_%S') + '.png'
+                plt.savefig(os.path.join(chart_dir, fname))
+            else:
+                plt.show()
 
     def clearSTChart(self):
         button = QtWidgets.QApplication.focusWidget()
