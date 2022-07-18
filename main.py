@@ -1,16 +1,16 @@
 import os
-from re import T
 import sys
 import matplotlib.pyplot as plt
 import matplotlib.dates as md
 import winsound
+import pandas as pd
 from matplotlib.ticker import MaxNLocator
 from matplotlib.dates import HourLocator, MinuteLocator, SecondLocator
 # from playsound import playsound
 from openpyxl import load_workbook, Workbook
 from datetime import datetime
 from PyQt6 import uic, QtWidgets
-from PyQt6.QtCore import QThread, pyqtSignal, QObject
+from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt
 from PyQt6.QtGui import QDoubleValidator
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium import webdriver
@@ -218,6 +218,7 @@ class Ui(QtWidgets.QMainWindow):
         self.mt_stoploss.setValidator(QDoubleValidator())
         self.mt_viewchart.clicked.connect(self.viewMTChart)
         self.mt_clearchart.clicked.connect(self.clearMTChart)
+        # QtWidgets.QTableWidget().keyPressEvent()
 
         self.initMT()
         self.initSL()
@@ -235,6 +236,27 @@ class Ui(QtWidgets.QMainWindow):
         # self.extracting_bot_thread.start()
 
         self.show()
+
+    def keyPressEvent(self, event):
+        widget = QtWidgets.QApplication.focusWidget()
+        
+        if widget.objectName() == 'auto_restart_table' or widget.objectName() == 'mt_table' or widget.objectName() == 'st_table':
+            if event.key() == Qt.Key.Key_V:
+                try:
+                    clipboard = pd.read_clipboard(sep=r'\s+', header=None)
+                except:
+                    clipboard = pd.DataFrame()
+                clipboard.fillna('0', inplace=True)
+
+                clip_rows = len(clipboard)
+                clip_cols = len(clipboard.columns)
+
+                for row_index in range(clip_rows):
+                    for col_index in range(clip_cols):
+                        try:
+                            widget.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(str(clipboard.iat[row_index, col_index])))
+                        except:
+                            pass
 
     def updateStatus(self, message, value, state):
         if not state:

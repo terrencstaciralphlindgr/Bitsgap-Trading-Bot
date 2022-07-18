@@ -258,6 +258,9 @@
          <height>531</height>
         </rect>
        </property>
+       <property name="editTriggers">
+        <set>QAbstractItemView::AnyKeyPressed|QAbstractItemView::DoubleClicked|QAbstractItemView::EditKeyPressed</set>
+       </property>
        <property name="dragDropMode">
         <enum>QAbstractItemView::NoDragDrop</enum>
        </property>
@@ -562,7 +565,7 @@
      <attribute name="title">
       <string>Auto Restart Panel</string>
      </attribute>
-     <widget class="QTableWidget" name="tableWidget">
+     <widget class="QTableWidget" name="auto_restart_table">
       <property name="geometry">
        <rect>
         <x>10</x>
@@ -575,7 +578,10 @@
        <number>100</number>
       </property>
       <attribute name="horizontalHeaderDefaultSectionSize">
-       <number>88</number>
+       <number>99</number>
+      </attribute>
+      <attribute name="horizontalHeaderStretchLastSection">
+       <bool>false</bool>
       </attribute>
       <attribute name="verticalHeaderDefaultSectionSize">
        <number>25</number>
@@ -683,11 +689,6 @@
       <row/>
       <row/>
       <row/>
-      <column>
-       <property name="text">
-        <string>ID</string>
-       </property>
-      </column>
       <column>
        <property name="text">
         <string>Selected for auto start</string>
