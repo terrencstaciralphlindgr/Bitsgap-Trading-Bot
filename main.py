@@ -218,22 +218,21 @@ class Ui(QtWidgets.QMainWindow):
         self.mt_stoploss.setValidator(QDoubleValidator())
         self.mt_viewchart.clicked.connect(self.viewMTChart)
         self.mt_clearchart.clicked.connect(self.clearMTChart)
-        # QtWidgets.QTableWidget().keyPressEvent()
 
-        self.initMT()
-        self.initSL()
+        # self.initMT()
+        # self.initSL()
 
         self.statusBar.showMessage('Loading...')
 
-        # self.extracting_bot_thread = QThread(self)
-        # self.extracting_bot_worker = ExtractingBot()
-        # self.extracting_bot_worker.moveToThread(self.extracting_bot_thread)
-        # self.extracting_bot_thread.started.connect(self.extracting_bot_worker.run)
-        # self.extracting_bot_worker.progress.connect(self.updateStatus)
-        # self.extracting_bot_worker.finished.connect(self.extracting_bot_thread.quit)
-        # self.extracting_bot_worker.finished.connect(self.extracting_bot_worker.deleteLater)
-        # self.extracting_bot_thread.finished.connect(self.extracting_bot_thread.deleteLater)
-        # self.extracting_bot_thread.start()
+        self.extracting_bot_thread = QThread(self)
+        self.extracting_bot_worker = ExtractingBot()
+        self.extracting_bot_worker.moveToThread(self.extracting_bot_thread)
+        self.extracting_bot_thread.started.connect(self.extracting_bot_worker.run)
+        self.extracting_bot_worker.progress.connect(self.updateStatus)
+        self.extracting_bot_worker.finished.connect(self.extracting_bot_thread.quit)
+        self.extracting_bot_worker.finished.connect(self.extracting_bot_worker.deleteLater)
+        self.extracting_bot_thread.finished.connect(self.extracting_bot_thread.deleteLater)
+        self.extracting_bot_thread.start()
 
         self.show()
 
@@ -257,6 +256,10 @@ class Ui(QtWidgets.QMainWindow):
                             widget.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(str(clipboard.iat[row_index, col_index])))
                         except:
                             pass
+            
+            if event.key() == Qt.Key.Key_Delete:
+                for index in widget.selectedIndexes():
+                    widget.setItem(index.row(), index.column(), QtWidgets.QTableWidgetItem(''))
 
     def updateStatus(self, message, value, state):
         if not state:
@@ -277,24 +280,24 @@ class Ui(QtWidgets.QMainWindow):
             if not self.extracting_bot_worker.is_mt_closing:
                 self.updateST(message, value)
 
-    def initMT(self):
-        mt_pair_file = open('multiple.txt', 'r')
-        mt_pairs = mt_pair_file.readlines()
+    # def initMT(self):
+    #     mt_pair_file = open('multiple.txt', 'r')
+    #     mt_pairs = mt_pair_file.readlines()
         
-        for index in range(len(mt_pairs)):
+    #     for index in range(len(mt_pairs)):
             
-            self.mt_table.setItem(index, 0, QtWidgets.QTableWidgetItem(mt_pairs[index].strip()))
+    #         self.mt_table.setItem(index, 0, QtWidgets.QTableWidgetItem(mt_pairs[index].strip()))
         
-        mt_pair_file.close()
+    #     mt_pair_file.close()
 
-    def initSL(self):
-        st_pair_file = open('single.txt', 'r')
-        st_pairs = st_pair_file.readlines()
+    # def initSL(self):
+    #     st_pair_file = open('single.txt', 'r')
+    #     st_pairs = st_pair_file.readlines()
         
-        for index in range(len(st_pairs)):
-            self.st_table.setItem(index, 0, QtWidgets.QTableWidgetItem(st_pairs[index].strip()))
+    #     for index in range(len(st_pairs)):
+    #         self.st_table.setItem(index, 0, QtWidgets.QTableWidgetItem(st_pairs[index].strip()))
         
-        st_pair_file.close()
+    #     st_pair_file.close()
 
     def clearMTChart(self):
         global track
