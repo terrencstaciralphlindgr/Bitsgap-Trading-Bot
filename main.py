@@ -134,8 +134,7 @@ class ExtractingBot(QObject):
 
                     if self.is_mt_closing:
                         self.is_mt_closing = False
-                    
-                    if self.is_st_closing:
+                    elif self.is_st_closing:
                         self.is_st_closing = False
             except:
                 pass
@@ -253,11 +252,10 @@ class Ui(QtWidgets.QMainWindow):
                 for row_index in range(clip_rows):
                     for col_index in range(clip_cols):
                         try:
-                            widget.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(str(clipboard.iat[row_index, col_index])))
+                            widget.setItem(widget.selectedIndexes()[0].row()+row_index, widget.selectedIndexes()[0].column()+col_index, QtWidgets.QTableWidgetItem(str(clipboard.iat[row_index, col_index])))
                         except:
                             pass
-            
-            if event.key() == Qt.Key.Key_Delete:
+            elif event.key() == Qt.Key.Key_Delete:
                 for index in widget.selectedIndexes():
                     widget.setItem(index.row(), index.column(), QtWidgets.QTableWidgetItem(''))
 
@@ -279,25 +277,6 @@ class Ui(QtWidgets.QMainWindow):
 
             if not self.extracting_bot_worker.is_mt_closing:
                 self.updateST(message, value)
-
-    # def initMT(self):
-    #     mt_pair_file = open('multiple.txt', 'r')
-    #     mt_pairs = mt_pair_file.readlines()
-        
-    #     for index in range(len(mt_pairs)):
-            
-    #         self.mt_table.setItem(index, 0, QtWidgets.QTableWidgetItem(mt_pairs[index].strip()))
-        
-    #     mt_pair_file.close()
-
-    # def initSL(self):
-    #     st_pair_file = open('single.txt', 'r')
-    #     st_pairs = st_pair_file.readlines()
-        
-    #     for index in range(len(st_pairs)):
-    #         self.st_table.setItem(index, 0, QtWidgets.QTableWidgetItem(st_pairs[index].strip()))
-        
-    #     st_pair_file.close()
 
     def clearMTChart(self):
         global track
@@ -494,8 +473,7 @@ class Ui(QtWidgets.QMainWindow):
                                     self.mt_table.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(''))
 
                 self.extracting_bot_worker.setClose(existing_pairs, True)
-
-            if collective >= tp:
+            elif collective >= tp:
                 alarm()
                 for pair in existing_pairs:
                     for row_index in range(self.mt_table.rowCount()):
@@ -524,7 +502,7 @@ class Ui(QtWidgets.QMainWindow):
                                     self.mt_table.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(''))
 
                 self.extracting_bot_worker.setClose(existing_pairs, True)
-                                
+
     def updateST(self, pairs, changes):
         row_count = self.st_table.rowCount()
         delete_pairs = []
@@ -595,8 +573,7 @@ class Ui(QtWidgets.QMainWindow):
                                 log_data.append("Hit TP")
                                 log_data.append(tp)
                                 log_data.append(sl)
-                            
-                            if change <= sl:
+                            elif change <= sl:
                                 log_data.append("Hit SL")
                                 log_data.append(tp)
                                 log_data.append(sl)
