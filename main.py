@@ -1,4 +1,5 @@
 import os
+from re import T
 import sys
 import matplotlib.pyplot as plt
 import matplotlib.dates as md
@@ -52,7 +53,8 @@ if not os.path.exists(chart_dir):
 class ExtractingBot(QObject):
     progress = pyqtSignal(list, list, bool)
     finished = pyqtSignal()
-    is_closing = False
+    is_mt_closing = False
+    is_st_closing = False
     close_list = []
 
     def run(self):
@@ -120,7 +122,7 @@ class ExtractingBot(QObject):
 
         while True:
             try:
-                if not self.is_closing:
+                if not self.is_mt_closing and not self.is_st_closing:
                     self.progress.emit(['Extracting change...'], [0], False)
 
                     self.extract(driver)
@@ -130,12 +132,20 @@ class ExtractingBot(QObject):
 
                     self.closePair(driver)
 
-                    self.is_closing = False
+                    if self.is_mt_closing:
+                        self.is_mt_closing = False
+                    
+                    if self.is_st_closing:
+                        self.is_st_closing = False
             except:
                 pass
 
-    def setClose(self, pairs):
-        self.is_closing = True
+    def setClose(self, pairs, is_mt):
+        if is_mt:
+            self.is_mt_closing = True
+        else:
+            self.is_st_closing = True
+
         self.close_list = pairs
 
     def closePair(self, driver):
@@ -151,7 +161,7 @@ class ExtractingBot(QObject):
                 is_closed = False
                 cells = pair.find_elements(By.CLASS_NAME, 'MuiTableCell-root')
 
-                name = cells[1].find_element(By.CLASS_NAME, 'two-row-cell').find_element(By.TAG_NAME, 'div').text.replace(' / ', '')
+                name = cells[1].find_element(By.CLASS_NAME, 'two-row-cell').find_element(By.TAG_NAME, 'div').text.replace(' / ', '/')
 
                 for pair_name in self.close_list:
                     if name == pair_name:
@@ -188,7 +198,7 @@ class ExtractingBot(QObject):
             for pair in pairs:
                 cells = pair.find_elements(By.CLASS_NAME, 'MuiTableCell-root')
 
-                name = cells[1].find_element(By.CLASS_NAME, 'two-row-cell').find_element(By.TAG_NAME, 'div').text.replace(' / ', '')
+                name = cells[1].find_element(By.CLASS_NAME, 'two-row-cell').find_element(By.TAG_NAME, 'div').text.replace(' / ', '/')
                 change = float(cells[3].text[:-1])
 
                 pair_list.append(name)
@@ -214,15 +224,15 @@ class Ui(QtWidgets.QMainWindow):
 
         self.statusBar.showMessage('Loading...')
 
-        self.extracting_bot_thread = QThread(self)
-        self.extracting_bot_worker = ExtractingBot()
-        self.extracting_bot_worker.moveToThread(self.extracting_bot_thread)
-        self.extracting_bot_thread.started.connect(self.extracting_bot_worker.run)
-        self.extracting_bot_worker.progress.connect(self.updateStatus)
-        self.extracting_bot_worker.finished.connect(self.extracting_bot_thread.quit)
-        self.extracting_bot_worker.finished.connect(self.extracting_bot_worker.deleteLater)
-        self.extracting_bot_thread.finished.connect(self.extracting_bot_thread.deleteLater)
-        self.extracting_bot_thread.start()
+        # self.extracting_bot_thread = QThread(self)
+        # self.extracting_bot_worker = ExtractingBot()
+        # self.extracting_bot_worker.moveToThread(self.extracting_bot_thread)
+        # self.extracting_bot_thread.started.connect(self.extracting_bot_worker.run)
+        # self.extracting_bot_worker.progress.connect(self.updateStatus)
+        # self.extracting_bot_worker.finished.connect(self.extracting_bot_thread.quit)
+        # self.extracting_bot_worker.finished.connect(self.extracting_bot_worker.deleteLater)
+        # self.extracting_bot_thread.finished.connect(self.extracting_bot_thread.deleteLater)
+        # self.extracting_bot_thread.start()
 
         self.show()
 
@@ -242,7 +252,7 @@ class Ui(QtWidgets.QMainWindow):
 
             self.updateMT(message, value)
 
-            if not self.extracting_bot_worker.is_closing:
+            if not self.extracting_bot_worker.is_mt_closing:
                 self.updateST(message, value)
 
     def initMT(self):
@@ -250,6 +260,7 @@ class Ui(QtWidgets.QMainWindow):
         mt_pairs = mt_pair_file.readlines()
         
         for index in range(len(mt_pairs)):
+            
             self.mt_table.setItem(index, 0, QtWidgets.QTableWidgetItem(mt_pairs[index].strip()))
         
         mt_pair_file.close()
@@ -297,7 +308,7 @@ class Ui(QtWidgets.QMainWindow):
             xfmt = md.DateFormatter('%m-%d %H:%M:%S')
             # plt.xlim(datetime(bot_start_date.year, bot_start_date.month, bot_start_date.day, 0, 0, 0), datetime(datetime.today().year, datetime.today().month, datetime.today().day, 23, 59, 59))
             ax.xaxis.set_major_formatter(xfmt)
-            ax.xaxis.set_major_locator(SecondLocator(bysecond=range(60), interval=10, tz=None))
+            # ax.xaxis.set_major_locator(SecondLocator(bysecond=range(60), interval=10, tz=None))
             ax.yaxis.set_major_locator(MaxNLocator(integer=True))
             
             plt.xticks(rotation=25)
@@ -360,7 +371,7 @@ class Ui(QtWidgets.QMainWindow):
             xfmt = md.DateFormatter('%m-%d %H:%M:%S')
             ax.xaxis.set_major_formatter(xfmt)
             # plt.xlim(datetime(bot_start_date.year, bot_start_date.month, bot_start_date.day, 0, 0, 0), datetime(datetime.today().year, datetime.today().month, datetime.today().day, 23, 59, 59))
-            ax.xaxis.set_major_locator(SecondLocator(bysecond=range(60), interval=10, tz=None))
+            # ax.xaxis.set_major_locator(SecondLocator(bysecond=range(60), interval=10, tz=None))
             ax.yaxis.set_major_locator(MaxNLocator(integer=True))
 
             plt.xticks(rotation=25)
@@ -377,12 +388,15 @@ class Ui(QtWidgets.QMainWindow):
             else:
                 plt.show()
 
-    def clearSTChart(self):
-        button = QtWidgets.QApplication.focusWidget()
-        index = self.st_table.indexAt(button.pos())
+    def clearSTChart(self, is_export=False, r_index=0):
+        if not is_export:
+            button = QtWidgets.QApplication.focusWidget()
+            index = self.st_table.indexAt(button.pos())
 
-        if index.isValid():
-            row_index = index.row()
+            if index.isValid():
+                row_index = index.row()
+        else:
+            row_index = r_index
 
         pair = self.st_table.item(row_index, 0).text()
 
@@ -432,6 +446,7 @@ class Ui(QtWidgets.QMainWindow):
                     for row_index in range(self.mt_table.rowCount()):
                         if self.mt_table.item(row_index, 0):
                             if self.mt_table.item(row_index, 0).text() == pair:
+                                self.viewMTChart(is_export=True)
                                 log_data = [pair, "multiple"]
 
                                 current_datetime = datetime.now()
@@ -453,7 +468,7 @@ class Ui(QtWidgets.QMainWindow):
                                 for col_index in range(2):
                                     self.mt_table.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(''))
 
-                self.extracting_bot_worker.setClose(existing_pairs)
+                self.extracting_bot_worker.setClose(existing_pairs, True)
 
             if collective >= tp:
                 alarm()
@@ -461,6 +476,7 @@ class Ui(QtWidgets.QMainWindow):
                     for row_index in range(self.mt_table.rowCount()):
                         if self.mt_table.item(row_index, 0):
                             if self.mt_table.item(row_index, 0).text() == pair:
+                                self.viewMTChart(is_export=True)
                                 log_data = [pair, "multiple"]
 
                                 current_datetime = datetime.now()
@@ -482,7 +498,7 @@ class Ui(QtWidgets.QMainWindow):
                                 for col_index in range(2):
                                     self.mt_table.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(''))
 
-                self.extracting_bot_worker.setClose(existing_pairs)
+                self.extracting_bot_worker.setClose(existing_pairs, True)
                                 
     def updateST(self, pairs, changes):
         row_count = self.st_table.rowCount()
@@ -533,6 +549,7 @@ class Ui(QtWidgets.QMainWindow):
                 for row_index in range(self.st_table.rowCount()):
                     if self.st_table.item(row_index, 0):
                         if self.st_table.item(row_index, 0).text() == pair:
+                            self.viewSTChart(is_export=True, r_index=row_index)
                             log_data = [pair, "single"]
 
                             current_datetime = datetime.now()
@@ -568,7 +585,7 @@ class Ui(QtWidgets.QMainWindow):
                             self.st_table.setCellWidget(row_index, 4, None)
                             self.st_table.setCellWidget(row_index, 5, None)
 
-            self.extracting_bot_worker.setClose(delete_pairs)
+            self.extracting_bot_worker.setClose(delete_pairs, False)
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
