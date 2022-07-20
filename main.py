@@ -6,7 +6,6 @@ import winsound
 import pandas as pd
 from matplotlib.ticker import MaxNLocator
 from matplotlib.dates import HourLocator, MinuteLocator, SecondLocator
-# from playsound import playsound
 from openpyxl import load_workbook, Workbook
 from datetime import datetime
 from PyQt6 import uic, QtWidgets
@@ -50,12 +49,14 @@ chart_dir = 'charts'
 if not os.path.exists(chart_dir):
     os.mkdir(chart_dir)
 
-class ExtractingBot(QObject):
+class Bot(QObject):
     progress = pyqtSignal(list, list, bool)
     finished = pyqtSignal()
     is_mt_closing = False
     is_st_closing = False
+    is_opening = False
     close_list = []
+    open_list = []
 
     def run(self):
         login_file = open('login.txt', 'r')
@@ -121,7 +122,8 @@ class ExtractingBot(QObject):
         self.progress.emit(['Loading finished!'], [0], False)
 
         while True:
-            try:
+            # try:
+            if not self.is_opening:
                 if not self.is_mt_closing and not self.is_st_closing:
                     self.progress.emit(['Extracting change...'], [0], False)
 
@@ -136,8 +138,15 @@ class ExtractingBot(QObject):
                         self.is_mt_closing = False
                     elif self.is_st_closing:
                         self.is_st_closing = False
-            except:
-                pass
+            else:
+                self.openPair(driver)
+                self.is_opening = False
+            # except:
+            #     pass
+
+    def setOpen(self, pairs):
+        self.is_opening = True
+        self.open_list = pairs
 
     def setClose(self, pairs, is_mt):
         if is_mt:
@@ -146,6 +155,41 @@ class ExtractingBot(QObject):
             self.is_st_closing = True
 
         self.close_list = pairs
+
+    def openPair(self, driver):
+        self.progress.emit(['Opening trades...'], [0], False)
+
+        for pair in self.open_list:
+            new_bot_button = driver.find_element(By.XPATH, '//div[@data-test="bot-start-new-bot-button"]')
+            driver.execute_script("arguments[0].click();", new_bot_button)
+
+            start_bot_button = driver.find_element(By.XPATH, '//div[@data-test="start-sbot"]')
+            driver.execute_script("arguments[0].click();", start_bot_button)
+
+            select_pair_button = driver.find_elements(By.XPATH, '//button[@class="aQXLoSia4k1esjIDAFwW eNHVE8z4gnaP_uzDASJz MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButtonBase-root  css-pev4aq"]')[-1]
+            driver.execute_script("arguments[0].click();", select_pair_button)
+
+            search_pair_input = driver.find_element(By.XPATH, '//input[@placeholder="Search by pair"]')
+            search_pair_input.clear()
+            search_pair_input.send_keys(pair)
+
+            found_pair = driver.find_element(By.XPATH, '//div[@class="MuiTableRow-root Ww5Ht1SCZfv3zC5nQFwh GHjFMeuMOZ1mUTMsHpSZ rSbNWzKWzIJZjdD2kDng css-1gqug66"]')
+            driver.execute_script("arguments[0].click();", found_pair)
+
+            sleep(5)
+
+            start_button = driver.find_element(By.XPATH, '//button[@data-test="bot-submit-button"]')
+            driver.execute_script("arguments[0].click();", start_button)
+
+            confirm_button = driver.find_element(By.XPATH, '//button[@data-test="bot-preview-confirm-button"]')
+            driver.execute_script("arguments[0].click();", confirm_button)
+
+            last_confirm_button = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, '//button[@class="MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-fullWidth MuiButtonBase-root kfCCZxmzvmdlp8FzqoXs ahq3tnpG5tgfhHv_ZVqH UBErGT1mUPdqt3hep5VK yrzviWht7csBpZTWkae5 css-za2zm7"]')))
+            driver.execute_script("arguments[0].click();", last_confirm_button)
+
+            sleep(5)
+
+        self.open_list = []
 
     def closePair(self, driver):
         while True:
@@ -218,33 +262,30 @@ class Ui(QtWidgets.QMainWindow):
         self.mt_viewchart.clicked.connect(self.viewMTChart)
         self.mt_clearchart.clicked.connect(self.clearMTChart)
 
-        # self.initMT()
-        # self.initSL()
-
         self.statusBar.showMessage('Loading...')
 
-        self.extracting_bot_thread = QThread(self)
-        self.extracting_bot_worker = ExtractingBot()
-        self.extracting_bot_worker.moveToThread(self.extracting_bot_thread)
-        self.extracting_bot_thread.started.connect(self.extracting_bot_worker.run)
-        self.extracting_bot_worker.progress.connect(self.updateStatus)
-        self.extracting_bot_worker.finished.connect(self.extracting_bot_thread.quit)
-        self.extracting_bot_worker.finished.connect(self.extracting_bot_worker.deleteLater)
-        self.extracting_bot_thread.finished.connect(self.extracting_bot_thread.deleteLater)
-        self.extracting_bot_thread.start()
+        # self.bot_thread = QThread(self)
+        # self.bot_worker = Bot()
+        # self.bot_worker.moveToThread(self.bot_thread)
+        # self.bot_thread.started.connect(self.bot_worker.run)
+        # self.bot_worker.progress.connect(self.updateStatus)
+        # self.bot_worker.finished.connect(self.bot_thread.quit)
+        # self.bot_worker.finished.connect(self.bot_worker.deleteLater)
+        # self.bot_thread.finished.connect(self.bot_thread.deleteLater)
+        # self.bot_thread.start()
 
         self.show()
 
     def keyPressEvent(self, event):
         widget = QtWidgets.QApplication.focusWidget()
         
-        if widget.objectName() == 'auto_restart_table' or widget.objectName() == 'mt_table' or widget.objectName() == 'st_table':
+        if widget.objectName() == 'single_system_table' or widget.objectName() == 'mt_table' or widget.objectName() == 'st_table':
             if event.key() == Qt.Key.Key_V:
                 try:
                     clipboard = pd.read_clipboard(sep=r'\s+', header=None)
                 except:
                     clipboard = pd.DataFrame()
-                clipboard.fillna('0', inplace=True)
+                clipboard.fillna('', inplace=True)
 
                 clip_rows = len(clipboard)
                 clip_cols = len(clipboard.columns)
@@ -275,8 +316,21 @@ class Ui(QtWidgets.QMainWindow):
 
             self.updateMT(message, value)
 
-            if not self.extracting_bot_worker.is_mt_closing:
+            if not self.bot_worker.is_mt_closing:
                 self.updateST(message, value)
+
+    def getPairsToOpen(self):
+        pairs = []
+
+        row_count = self.auto_start_table.rowCount()
+
+        for row_index in range(row_count):
+            item = self.auto_start_table.item(row_index, 0)
+            if item:
+                if item.text() == 'YES':
+                    pairs.append(self.auto_start_table.item(row_index, 1).text())
+
+        return pairs
 
     def clearMTChart(self):
         global track
@@ -472,7 +526,7 @@ class Ui(QtWidgets.QMainWindow):
                                 for col_index in range(2):
                                     self.mt_table.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(''))
 
-                self.extracting_bot_worker.setClose(existing_pairs, True)
+                self.bot_worker.setClose(existing_pairs, True)
             elif collective >= tp:
                 alarm()
                 for pair in existing_pairs:
@@ -501,7 +555,7 @@ class Ui(QtWidgets.QMainWindow):
                                 for col_index in range(2):
                                     self.mt_table.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(''))
 
-                self.extracting_bot_worker.setClose(existing_pairs, True)
+                self.bot_worker.setClose(existing_pairs, True)
 
     def updateST(self, pairs, changes):
         row_count = self.st_table.rowCount()
@@ -587,7 +641,7 @@ class Ui(QtWidgets.QMainWindow):
                             self.st_table.setCellWidget(row_index, 4, None)
                             self.st_table.setCellWidget(row_index, 5, None)
 
-            self.extracting_bot_worker.setClose(delete_pairs, False)
+            self.bot_worker.setClose(delete_pairs, False)
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)

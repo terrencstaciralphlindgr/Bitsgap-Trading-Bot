@@ -9,7 +9,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>861</width>
+    <width>900</width>
     <height>749</height>
    </rect>
   </property>
@@ -21,31 +21,52 @@
   </property>
   <property name="minimumSize">
    <size>
-    <width>861</width>
-    <height>726</height>
+    <width>900</width>
+    <height>749</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
     <width>900</width>
-    <height>900</height>
+    <height>749</height>
    </size>
   </property>
   <property name="windowTitle">
    <string>Bitsgap Bot Manager - Demo</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <widget class="QTabWidget" name="tabWidget">
+   <property name="enabled">
+    <bool>true</bool>
+   </property>
+   <widget class="QTabWidget" name="tabs">
     <property name="enabled">
      <bool>true</bool>
     </property>
     <property name="geometry">
      <rect>
-      <x>-2</x>
+      <x>0</x>
       <y>0</y>
-      <width>881</width>
-      <height>721</height>
+      <width>902</width>
+      <height>731</height>
      </rect>
+    </property>
+    <property name="sizePolicy">
+     <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+      <horstretch>0</horstretch>
+      <verstretch>0</verstretch>
+     </sizepolicy>
+    </property>
+    <property name="minimumSize">
+     <size>
+      <width>902</width>
+      <height>731</height>
+     </size>
+    </property>
+    <property name="maximumSize">
+     <size>
+      <width>902</width>
+      <height>731</height>
+     </size>
     </property>
     <property name="styleSheet">
      <string notr="true"/>
@@ -59,17 +80,17 @@
     <property name="tabsClosable">
      <bool>false</bool>
     </property>
-    <widget class="QWidget" name="tab_2">
+    <widget class="QWidget" name="auto_close_tab">
      <attribute name="title">
-      <string>TP &amp;&amp; SL Panel</string>
+      <string>Auto Close Panel</string>
      </attribute>
      <widget class="QGroupBox" name="groupBox_2">
       <property name="geometry">
        <rect>
-        <x>320</x>
+        <x>315</x>
         <y>0</y>
-        <width>531</width>
-        <height>691</height>
+        <width>571</width>
+        <height>701</height>
        </rect>
       </property>
       <property name="title">
@@ -80,8 +101,8 @@
         <rect>
          <x>10</x>
          <y>20</y>
-         <width>511</width>
-         <height>661</height>
+         <width>551</width>
+         <height>671</height>
         </rect>
        </property>
        <property name="selectionMode">
@@ -97,7 +118,7 @@
         <number>6</number>
        </property>
        <attribute name="horizontalHeaderDefaultSectionSize">
-        <number>76</number>
+        <number>83</number>
        </attribute>
        <attribute name="verticalHeaderDefaultSectionSize">
         <number>25</number>
@@ -243,7 +264,7 @@
         <x>10</x>
         <y>0</y>
         <width>291</width>
-        <height>691</height>
+        <height>701</height>
        </rect>
       </property>
       <property name="title">
@@ -255,7 +276,7 @@
          <x>10</x>
          <y>20</y>
          <width>271</width>
-         <height>531</height>
+         <height>541</height>
         </rect>
        </property>
        <property name="editTriggers">
@@ -415,7 +436,7 @@
        <property name="geometry">
         <rect>
          <x>80</x>
-         <y>610</y>
+         <y>620</y>
          <width>101</width>
          <height>21</height>
         </rect>
@@ -433,7 +454,7 @@
        <property name="geometry">
         <rect>
          <x>180</x>
-         <y>610</y>
+         <y>620</y>
          <width>41</width>
          <height>21</height>
         </rect>
@@ -451,7 +472,7 @@
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>640</y>
+         <y>650</y>
          <width>131</width>
          <height>41</height>
         </rect>
@@ -469,7 +490,7 @@
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>560</y>
+         <y>570</y>
          <width>131</width>
          <height>41</height>
         </rect>
@@ -507,7 +528,7 @@
        <property name="geometry">
         <rect>
          <x>150</x>
-         <y>560</y>
+         <y>570</y>
          <width>131</width>
          <height>41</height>
         </rect>
@@ -545,7 +566,7 @@
        <property name="geometry">
         <rect>
          <x>150</x>
-         <y>640</y>
+         <y>650</y>
          <width>131</width>
          <height>41</height>
         </rect>
@@ -561,34 +582,28 @@
       </widget>
      </widget>
     </widget>
-    <widget class="QWidget" name="tab">
+    <widget class="QWidget" name="single_system_tab">
      <attribute name="title">
-      <string>Auto Restart Panel</string>
+      <string>Single System</string>
      </attribute>
-     <widget class="QTableWidget" name="auto_restart_table">
+     <widget class="QTableWidget" name="single_system_table">
       <property name="geometry">
        <rect>
         <x>10</x>
         <y>10</y>
-        <width>841</width>
-        <height>681</height>
+        <width>876</width>
+        <height>691</height>
        </rect>
       </property>
       <property name="rowCount">
        <number>100</number>
       </property>
       <attribute name="horizontalHeaderDefaultSectionSize">
-       <number>99</number>
-      </attribute>
-      <attribute name="horizontalHeaderStretchLastSection">
-       <bool>false</bool>
+       <number>75</number>
       </attribute>
       <attribute name="verticalHeaderDefaultSectionSize">
        <number>25</number>
       </attribute>
-      <attribute name="verticalHeaderMinimumSectionSize">
-       <number>25</number>
-      </attribute>
       <row/>
       <row/>
       <row/>
@@ -691,12 +706,17 @@
       <row/>
       <column>
        <property name="text">
-        <string>Selected for auto start</string>
+        <string>PAIR</string>
        </property>
       </column>
       <column>
        <property name="text">
-        <string>PAIRS</string>
+        <string>BUY</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>SELL</string>
        </property>
       </column>
       <column>
@@ -727,6 +747,16 @@
       <column>
        <property name="text">
         <string>Low Price</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>Take Profit</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>Stop Loss</string>
        </property>
       </column>
      </widget>

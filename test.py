@@ -1,8 +1,12 @@
+import requests
+from datetime import datetime
 from time import sleep
-import winsound
 
-duration = 500  # milliseconds
-freq = 750  # Hz
+api = 'http://rick26754.pythonanywhere.com/'
 
-for _ in range(3):
-    winsound.Beep(freq, duration)
+while True:
+    r = requests.get(api)
+    print(datetime.now())
+    print(r.json())
+
+    sleep(10)
