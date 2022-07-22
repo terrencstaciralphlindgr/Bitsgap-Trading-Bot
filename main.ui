@@ -3,7 +3,7 @@
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
   <property name="enabled">
-   <bool>true</bool>
+   <bool>false</bool>
   </property>
   <property name="geometry">
    <rect>
@@ -587,12 +587,15 @@
       <string>Single System</string>
      </attribute>
      <widget class="QTableWidget" name="single_system_table">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>10</y>
+        <y>40</y>
         <width>876</width>
-        <height>691</height>
+        <height>661</height>
        </rect>
       </property>
       <property name="rowCount">
@@ -759,6 +762,56 @@
         <string>Stop Loss</string>
        </property>
       </column>
+     </widget>
+     <widget class="QLineEdit" name="single_system_inv">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
+      <property name="geometry">
+       <rect>
+        <x>770</x>
+        <y>10</y>
+        <width>113</width>
+        <height>20</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>100</string>
+      </property>
+     </widget>
+     <widget class="QLabel" name="single_system_inv_text">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
+      <property name="geometry">
+       <rect>
+        <x>650</x>
+        <y>10</y>
+        <width>111</width>
+        <height>16</height>
+       </rect>
+      </property>
+      <property name="font">
+       <font>
+        <pointsize>9</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>Investment / USDT</string>
+      </property>
+     </widget>
+     <widget class="QCheckBox" name="singel_system_checkbox">
+      <property name="geometry">
+       <rect>
+        <x>20</x>
+        <y>10</y>
+        <width>101</width>
+        <height>17</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Enable System</string>
+      </property>
      </widget>
     </widget>
    </widget>
