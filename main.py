@@ -5,6 +5,8 @@ import matplotlib.dates as md
 import winsound
 import pandas as pd
 import requests
+from threading import Thread
+from kucoin.client import Client
 from matplotlib.ticker import MaxNLocator
 from matplotlib.dates import HourLocator, MinuteLocator, SecondLocator
 from openpyxl import load_workbook, Workbook
@@ -52,6 +54,94 @@ is_single_sytem_activated = False
 if not os.path.exists(chart_dir):
     os.mkdir(chart_dir)
 
+class Pricer(QObject):
+    progress = pyqtSignal(dict)
+    finished = pyqtSignal()
+
+    def __init__(self, single_system_table):
+        super().__init__()
+
+        self.single_system_table = single_system_table
+
+        api_key = "62de0d8d5ce91e0001765393"
+        api_secret = "234a6141-767e-4dd9-ac0f-7b2427c43958"
+        api_passphrase = "richardapi"
+
+        self.client = Client(api_key, api_secret, api_passphrase)
+        self.result = {}
+
+    def run(self):
+        while True:
+            row_count = self.single_system_table.rowCount()
+            pairs_from_table = []
+
+            for row_index in range(row_count):
+                item = self.single_system_table.item(row_index, 0)
+                buy = self.single_system_table.item(row_index, 1)
+                sell = self.single_system_table.item(row_index, 2)
+
+                if item:
+                    if item.text() != "":
+                        is_added = False
+
+                        if buy:
+                            if buy.background().color() == QColor(0, 255, 0):
+                                pairs_from_table.append(item.text().replace('USDT', '3L-USDT'))
+                                is_added = True
+                        
+                        if sell:
+                            if sell.background().color() == QColor(255, 0, 0):
+                                pairs_from_table.append(item.text().replace('USDT', '3S-USDT'))
+                                is_added = True
+
+                        if not is_added:
+                            pairs_from_table.append(item.text().replace('USDT', '-USDT'))
+
+            pairs_group = [pairs_from_table[i:i+10] for i in range(0, len(pairs_from_table), 10)]
+
+            self.result = {}
+
+            for group in pairs_group:
+                thread_count = len(group)
+                threads = []
+                for index in range(thread_count):
+                    thread = Thread(target=self.getPrice, args=(group[index], ))
+                    threads.append(thread)
+                    thread.start()
+
+                for thread in threads:
+                    thread.join()
+
+            for pair in pairs_from_table:
+                for row_index in range(row_count):
+                    item = self.single_system_table.item(row_index, 0)
+
+                    if item:
+                        if item.text() == pair.replace('-', '').replace('3L', '').replace('3S', ''):
+                            try:
+                                c_price = float(self.result[pair])
+                                c_to_h_price = float(self.single_system_table.item(row_index, 5).text())
+                                grid_size = float(self.single_system_table.item(row_index, 6).text())
+
+                                h_price = c_price + (c_to_h_price * c_price)
+                                l_price = ((100 - grid_size) * 0.01) * h_price
+
+                                self.single_system_table.setItem(row_index, 4, QtWidgets.QTableWidgetItem('{:.6f}'.format(c_price)))
+                                self.single_system_table.setItem(row_index, 7, QtWidgets.QTableWidgetItem('{:.6f}'.format(h_price)))
+                                self.single_system_table.setItem(row_index, 8, QtWidgets.QTableWidgetItem('{:.6f}'.format(l_price)))
+                            except:
+                                pass
+
+                            break
+
+            sleep(0.1)
+
+    def getPrice(self, pair):
+        try:
+            self.result[pair] = self.client.get_ticker(pair)['price']
+        except:
+            pass
+
 class Webhook(QObject):
     progress = pyqtSignal(dict)
     finished = pyqtSignal()
@@ -62,8 +152,7 @@ class Webhook(QObject):
         while True:
             if is_single_sytem_activated:
                 if not is_cleaned:
-                    for _ in range(10):
-                        r = requests.get('http://rick26754.pythonanywhere.com/')
+                    requests.get('http://rick26754.pythonanywhere.com/clear')
                     
                     is_cleaned = True
 
@@ -71,7 +160,7 @@ class Webhook(QObject):
                 
                 self.progress.emit(r.json())
 
-                sleep(60)
+                sleep(3)
             else:
                 is_cleaned = False
 
@@ -81,12 +170,19 @@ class Bot(QObject):
     is_mt_closing = False
     is_st_closing = False
     is_opening = False
+
     close_list = []
     open_list = []
-    l_prices = []
-    h_prices = []
-    grid_levels = []
+
+    open_list_buff = []
+    close_list_buff = []
+
     investment = 100
+
+    def __init__(self, single_system_table, single_system_inv):
+        super().__init__()
+        self.single_system_table = single_system_table
+        self.single_system_inv = single_system_inv
 
     def run(self):
         login_file = open('login.txt', 'r')
@@ -149,12 +245,6 @@ class Bot(QObject):
 
         driver.get('https://app.bitsgap.com/bot')
 
-        # try:
-        #     cross_button = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, '//button[@class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeLarge MJl9JyxF7DXg4KHqMyOg css-1gzpori"]')))
-        #     cross_button.click()
-        # except TimeoutException:
-        #     pass
-
         self.progress.emit(['Loading finished!'], [0], False)
 
         while True:
@@ -185,12 +275,8 @@ class Bot(QObject):
             # except:
             #     pass
 
-    def setOpen(self, pairs, l_prices, h_prices, grid_levels, investment):
-        self.open_list = pairs
-        self.l_prices = l_prices
-        self.h_prices = h_prices
-        self.grid_levels = grid_levels
-        self.investment = investment
+    def setOpen(self, pairs):
+        self.open_list += pairs
 
     def setClose(self, pairs, is_mt):
         if is_mt:
@@ -198,38 +284,62 @@ class Bot(QObject):
         else:
             self.is_st_closing = True
 
-        self.close_list = pairs
+        self.close_list += pairs
 
     def openPair(self, driver):
         for index in range(len(self.open_list)):
             pair = self.open_list[index]
-            high = self.h_prices[index]
-            low = self.l_prices[index]
-            grid = self.grid_levels[index]
+            pair_for_single_table = pair.replace('/', '')
 
-            new_bot_button = driver.find_element(By.XPATH, '//div[@data-test="bot-start-new-bot-button"]')
+            row_count = self.single_system_table.rowCount()
+
+            for row_index in range(row_count):
+                item = self.single_system_table.item(row_index, 0)
+
+                if item:
+                    if item.text() == pair_for_single_table:
+                        low = self.single_system_table.item(row_index, 8).text()
+                        high = self.single_system_table.item(row_index, 7).text()
+                        grid = self.single_system_table.item(row_index, 3).text()
+
+                        break
+
+            try:
+                self.investment = float(self.single_system_inv.text())
+            except:
+                pass
+
+            try:
+                cross_button = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, '//button[@class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeLarge MJl9JyxF7DXg4KHqMyOg css-1gzpori"]')))
+                driver.execute_script("arguments[0].click();", cross_button)
+            except TimeoutException:
+                pass
+
+            new_bot_button = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, '//div[@data-test="bot-start-new-bot-button"]')))
             driver.execute_script("arguments[0].click();", new_bot_button)
 
-            start_bot_button = driver.find_element(By.XPATH, '//div[@data-test="start-sbot"]')
+            start_bot_button = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, '//div[@data-test="start-sbot"]')))
             driver.execute_script("arguments[0].click();", start_bot_button)
 
-            select_pair_button = driver.find_elements(By.XPATH, '//button[@class="aQXLoSia4k1esjIDAFwW eNHVE8z4gnaP_uzDASJz MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButtonBase-root  css-pev4aq"]')[-1]
+            exchange_button = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//button[@class="aQXLoSia4k1esjIDAFwW eNHVE8z4gnaP_uzDASJz MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButtonBase-root  css-pev4aq"]')))[0]
+            driver.execute_script("arguments[0].click();", exchange_button)
+
+            search_exchange_input = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, '//input[@placeholder="Search by exchanges"]')))
+            search_exchange_input.clear()
+            search_exchange_input.send_keys('Kucoin')
+
+            found_exchange = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//div[@class="MuiTableRow-root Ww5Ht1SCZfv3zC5nQFwh GHjFMeuMOZ1mUTMsHpSZ rSbNWzKWzIJZjdD2kDng css-1gqug66"]')))[-1]
+            driver.execute_script("arguments[0].click();", found_exchange)
+
+            select_pair_button = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//button[@class="aQXLoSia4k1esjIDAFwW eNHVE8z4gnaP_uzDASJz MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButtonBase-root  css-pev4aq"]')))[-1]
             driver.execute_script("arguments[0].click();", select_pair_button)
 
-            search_pair_input = driver.find_element(By.XPATH, '//input[@placeholder="Search by pair"]')
+            search_pair_input = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, '//input[@placeholder="Search by pair"]')))
             search_pair_input.clear()
             search_pair_input.send_keys(pair)
 
-            sleep(2)
-
-            found_pair = driver.find_element(By.XPATH, '//div[@class="MuiTableRow-root Ww5Ht1SCZfv3zC5nQFwh GHjFMeuMOZ1mUTMsHpSZ rSbNWzKWzIJZjdD2kDng css-1gqug66"]')
+            found_pair = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//div[@class="MuiTableRow-root Ww5Ht1SCZfv3zC5nQFwh GHjFMeuMOZ1mUTMsHpSZ rSbNWzKWzIJZjdD2kDng css-1gqug66"]')))[-1]
             driver.execute_script("arguments[0].click();", found_pair)
-
-            sleep(5)
-
-            investment_input = driver.find_element(By.XPATH, '//input[@class="text-input__input text-input__input_align_left MuiFilledInput-input MuiInputBase-input MuiInputBase-inputAdornedEnd css-ftr4jk"]')
-            investment_input.send_keys(Keys.BACKSPACE*10)
-            investment_input.send_keys(self.investment)
 
             sleep(2)
 
@@ -252,17 +362,26 @@ class Bot(QObject):
             grid_input.send_keys(Keys.BACKSPACE*10)
             grid_input.send_keys(grid)
 
+            sleep(2)
+
+            investment_input = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, '//input[@class="text-input__input text-input__input_align_left MuiFilledInput-input MuiInputBase-input MuiInputBase-inputAdornedEnd css-ftr4jk"]')))
+            investment_input.send_keys(Keys.BACKSPACE*10)
+            investment_input.send_keys(str(self.investment))
+
             sleep(5)
 
-            start_button = driver.find_element(By.XPATH, '//button[@data-test="bot-submit-button"]')
+            try:
+                start_button = driver.find_element(By.XPATH, '//button[@data-test="bot-submit-button"]')
 
-            driver.execute_script("arguments[0].click();", start_button)
+                driver.execute_script("arguments[0].click();", start_button)
 
-            confirm_button = driver.find_element(By.XPATH, '//button[@data-test="bot-preview-confirm-button"]')
-            driver.execute_script("arguments[0].click();", confirm_button)
+                confirm_button = driver.find_element(By.XPATH, '//button[@data-test="bot-preview-confirm-button"]')
+                driver.execute_script("arguments[0].click();", confirm_button)
 
-            last_confirm_button = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, '//button[@class="MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-fullWidth MuiButtonBase-root kfCCZxmzvmdlp8FzqoXs ahq3tnpG5tgfhHv_ZVqH UBErGT1mUPdqt3hep5VK yrzviWht7csBpZTWkae5 css-za2zm7"]')))
-            driver.execute_script("arguments[0].click();", last_confirm_button)
+                last_confirm_button = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, '//button[@class="MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-fullWidth MuiButtonBase-root kfCCZxmzvmdlp8FzqoXs ahq3tnpG5tgfhHv_ZVqH UBErGT1mUPdqt3hep5VK yrzviWht7csBpZTWkae5 css-za2zm7"]')))
+                driver.execute_script("arguments[0].click();", last_confirm_button)
+            except:
+                pass
 
             sleep(5)
 
@@ -273,7 +392,7 @@ class Bot(QObject):
             is_closed = False
 
             try:
-                pairs = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.CLASS_NAME, 'MuiTableRow-root')))[1:]
+                pairs = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.CLASS_NAME, 'MuiTableRow-root')))[1:]
             except TimeoutException:
                 pairs = []
                 
@@ -285,14 +404,16 @@ class Bot(QObject):
 
                 for pair_name in self.close_list:
                     if name == pair_name:
+                        driver.execute_script("arguments[0].click();", cells[-1].find_elements(By.TAG_NAME, 'button')[-1])
+                        driver.execute_script("arguments[0].click();", WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, '//button[@class="aQXLoSia4k1esjIDAFwW zhVSsYrxjm8vd8ihxSUs MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButtonBase-root  css-pev4aq"]'))))
+
                         try:
-                            driver.execute_script("arguments[0].click();", cells[-1].find_elements(By.TAG_NAME, 'button')[-1])
-                            driver.execute_script("arguments[0].click();", driver.find_element(By.XPATH, '//button[@class="aQXLoSia4k1esjIDAFwW zhVSsYrxjm8vd8ihxSUs MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButtonBase-root  css-pev4aq"]'))
-                            driver.execute_script("arguments[0].click();", driver.find_elements(By.XPATH, '//li[@class="yh3uTjDDJTvbuAZD9i_M jj5mPys2QhRB6omDdQP4 MuiMenuItem-root MuiMenuItem-gutters MuiButtonBase-root css-17cm1p2"]')[1])
-                            confirm = driver.find_element(By.XPATH, '//button[@data-test="bot-preview-confirm-button"]')
-                            driver.execute_script("arguments[0].click();", confirm)
-                        except:
-                            pass
+                            driver.execute_script("arguments[0].click();", WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//li[@class="yh3uTjDDJTvbuAZD9i_M jj5mPys2QhRB6omDdQP4 MuiMenuItem-root MuiMenuItem-gutters MuiButtonBase-root css-17cm1p2"]')))[1])
+                        except TimeoutException:
+                            driver.execute_script("arguments[0].click();", WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//li[@class="yh3uTjDDJTvbuAZD9i_M jj5mPys2QhRB6omDdQP4 MuiMenuItem-root MuiMenuItem-gutters MuiButtonBase-root css-17cm1p2"]')))[0])
+                        
+                        confirm = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, '//button[@data-test="bot-preview-confirm-button"]')))
+                        driver.execute_script("arguments[0].click();", confirm)
 
                         is_closed = True
                         
@@ -319,8 +440,18 @@ class Bot(QObject):
             for pair in pairs:
                 cells = pair.find_elements(By.CLASS_NAME, 'MuiTableCell-root')
 
-                name = cells[1].find_element(By.CLASS_NAME, 'two-row-cell').find_element(By.TAG_NAME, 'div').text.replace(' / ', '/')
-                change = float(cells[3].text[:-1])
+                try:
+                    name = cells[1].find_element(By.CLASS_NAME, 'two-row-cell').find_element(By.TAG_NAME, 'div').text.replace(' / ', '/')
+                except NoSuchElementException:
+                    self.progress.emit([], [], True)
+                    self.progress.emit(["No pairs"], [0], False)
+
+                    break
+                
+                try:
+                    change = float(cells[3].text[:-1])
+                except:
+                    change = 0
 
                 pair_list.append(name)
                 change_list.append(change)
@@ -345,15 +476,15 @@ class Ui(QtWidgets.QMainWindow):
 
         self.statusBar.showMessage('Loading...')
 
-        self.bot_thread = QThread(self)
-        self.bot_worker = Bot()
-        self.bot_worker.moveToThread(self.bot_thread)
-        self.bot_thread.started.connect(self.bot_worker.run)
-        self.bot_worker.progress.connect(self.updateStatus)
-        self.bot_worker.finished.connect(self.bot_thread.quit)
-        self.bot_worker.finished.connect(self.bot_worker.deleteLater)
-        self.bot_thread.finished.connect(self.bot_thread.deleteLater)
-        self.bot_thread.start()
+        # self.bot_thread = QThread(self)
+        # self.bot_worker = Bot(self.single_system_table, self.single_system_inv)
+        # self.bot_worker.moveToThread(self.bot_thread)
+        # self.bot_thread.started.connect(self.bot_worker.run)
+        # self.bot_worker.progress.connect(self.updateStatus)
+        # self.bot_worker.finished.connect(self.bot_thread.quit)
+        # self.bot_worker.finished.connect(self.bot_worker.deleteLater)
+        # self.bot_thread.finished.connect(self.bot_thread.deleteLater)
+        # self.bot_thread.start()
 
         self.webhook_thread = QThread(self)
         self.webhook_worker = Webhook()
@@ -365,6 +496,15 @@ class Ui(QtWidgets.QMainWindow):
         self.webhook_thread.finished.connect(self.webhook_thread.deleteLater)
         self.webhook_thread.start()
 
+        self.pricer_thread = QThread(self)
+        self.pricer_worker = Pricer(self.single_system_table)
+        self.pricer_worker.moveToThread(self.pricer_thread)
+        self.pricer_thread.started.connect(self.pricer_worker.run)
+        self.pricer_worker.finished.connect(self.pricer_thread.quit)
+        self.pricer_worker.finished.connect(self.pricer_worker.deleteLater)
+        self.pricer_thread.finished.connect(self.pricer_thread.deleteLater)
+        self.pricer_thread.start()
+
         self.show()
 
     def updateSingleSystem(self, enabled):
@@ -374,6 +514,8 @@ class Ui(QtWidgets.QMainWindow):
         self.single_system_inv_text.setEnabled(enabled)
         self.single_system_inv.setEnabled(enabled)
         self.single_system_table.setEnabled(enabled)
+
+        self.last_signal = {}
 
     def keyPressEvent(self, event):
         widget = QtWidgets.QApplication.focusWidget()
@@ -421,10 +563,6 @@ class Ui(QtWidgets.QMainWindow):
     def updateSignal(self, signal: dict):
         keys = signal.keys()
         open_list = []
-        low_prices = []
-        high_prices = []
-        grid_levels = []
-        current_prices = {}
         close_list = []
 
         if len(keys) > 0:
@@ -437,7 +575,6 @@ class Ui(QtWidgets.QMainWindow):
                         close_list.append(key.replace('USDT', '3L/USDT'))
                         open_list.append(key.replace('USDT', '3S/USDT'))
 
-                    current_prices[key] = signal[key]['price']
                 elif self.last_signal[key]['signal'] != signal[key]['signal']:
                     if signal[key]['signal'] == 'Buy':
                         close_list.append(key.replace('USDT', '3S/USDT'))
@@ -445,8 +582,6 @@ class Ui(QtWidgets.QMainWindow):
                     elif signal[key]['signal'] == 'Sell':
                         close_list.append(key.replace('USDT', '3L/USDT'))
                         open_list.append(key.replace('USDT', '3S/USDT'))
-
-                    current_prices[key] = signal[key]['price']
 
             self.last_signal = signal
 
@@ -466,6 +601,45 @@ class Ui(QtWidgets.QMainWindow):
                 for row_index in range(row_count):
                     if self.single_system_table.item(row_index, 0):
                         if self.single_system_table.item(row_index, 0).text() == pair_for_single_table:
+                            # Add pair to st_table on 1st tab
+                            st_table_row_count = self.st_table.rowCount()
+                            is_exist_in_st = False
+
+                            for st_row_index in range(st_table_row_count):
+                                item = self.st_table.item(st_row_index, 0)
+
+                                if item:
+                                    if item.text() == pair:
+                                        is_exist_in_st = True
+                                        break
+
+                            if not is_exist_in_st:
+                                for st_row_index in range(st_table_row_count):
+                                    item = self.st_table.item(st_row_index, 0)
+
+                                    if item and item.text() == "":
+                                        self.st_table.setItem(st_row_index, 0, QtWidgets.QTableWidgetItem(pair))
+
+                                        tp = self.single_system_table.item(row_index, 9).text()
+                                        sl = self.single_system_table.item(row_index, 10).text()
+
+                                        self.st_table.setItem(st_row_index, 2, QtWidgets.QTableWidgetItem(tp))
+                                        self.st_table.setItem(st_row_index, 3, QtWidgets.QTableWidgetItem(sl))
+
+                                        break
+
+                                    if not item:
+                                        self.st_table.setItem(st_row_index, 0, QtWidgets.QTableWidgetItem(pair))
+
+                                        tp = self.single_system_table.item(row_index, 9).text()
+                                        sl = self.single_system_table.item(row_index, 10).text()
+
+                                        self.st_table.setItem(st_row_index, 2, QtWidgets.QTableWidgetItem(tp))
+                                        self.st_table.setItem(st_row_index, 3, QtWidgets.QTableWidgetItem(sl))
+
+                                        break
+
+                            # Update single system table state
                             if buy and not sell:
                                 self.single_system_table.item(row_index, 1).setBackground(QColor(0, 255, 0))
                                 self.single_system_table.item(row_index, 2).setBackground(QColor(255, 255, 255))
@@ -473,25 +647,8 @@ class Ui(QtWidgets.QMainWindow):
                                 self.single_system_table.item(row_index, 1).setBackground(QColor(255, 255, 255))
                                 self.single_system_table.item(row_index, 2).setBackground(QColor(255, 0, 0))
 
-                            c_price = float(current_prices[pair_for_single_table])
-                            c_to_h_price = float(self.single_system_table.item(row_index, 5).text())
-                            grid_size = float(self.single_system_table.item(row_index, 6).text())
-
-                            h_price = c_price + (c_price * c_to_h_price)
-                            l_price = ((100 - grid_size) * 0.01) * h_price
-
-                            low_prices.append('{:.4f}'.format(l_price))
-                            high_prices.append('{:.4f}'.format(h_price))
-                            grid_levels.append(self.single_system_table.item(row_index, 3).text())
-
-                            self.single_system_table.setItem(row_index, 4, QtWidgets.QTableWidgetItem('{:.4f}'.format(c_price)))
-                            self.single_system_table.setItem(row_index, 7, QtWidgets.QTableWidgetItem('{:.4f}'.format(h_price)))
-                            self.single_system_table.setItem(row_index, 8, QtWidgets.QTableWidgetItem('{:.4f}'.format(l_price)))
-
-            if len(low_prices) > 0:
-                self.bot_worker.setClose(close_list, False)
-                investment = self.single_system_inv.text()
-                self.bot_worker.setOpen(open_list, low_prices, high_prices, grid_levels, investment)
+            # self.bot_worker.setClose(close_list, False)
+            # self.bot_worker.setOpen(open_list)
 
     def clearMTChart(self):
         global track
@@ -753,7 +910,7 @@ class Ui(QtWidgets.QMainWindow):
                                 alarm()
                                 delete_pairs.append(item.text())
                 else:
-                    for col_index in range(1, 4):
+                    for col_index in range(4):
                         self.st_table.setItem(row_index, col_index, None)
                     
                     self.st_table.setCellWidget(row_index, 4, None)
