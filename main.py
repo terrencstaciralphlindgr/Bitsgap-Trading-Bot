@@ -37,10 +37,13 @@ try:
     wb = load_workbook('Closed Trades.xlsx')
     ws = wb.worksheets[0]
 except FileNotFoundError:
-    headers_row = ["Pair", "Category", "Date", "Time", "Change % on closure", "Close Condition", "TP", "SL", "Collective"]
+    headers_row = ["Pair", "Category", "Open", "Close", "Change % on closure", "Close Condition", "TP", "SL", "Collective"]
     wb = Workbook()
     ws = wb.active
     ws.append(headers_row)
+
+chart_log_wb = load_workbook('Chart Data Log.xlsx')
+chart_log_ws = chart_log_wb.worksheets[0]
 
 track = {
     'MT': [],
@@ -53,6 +56,54 @@ is_single_sytem_activated = False
 
 if not os.path.exists(chart_dir):
     os.mkdir(chart_dir)
+    
+class ChartLogger(QObject):
+    def __init__(self, st_table):
+        super().__init__()
+
+        self.st_table = st_table
+
+    def run(self):
+        pairs = []
+        column_count = chart_log_ws.max_column
+
+        for index in range(3, column_count+1):
+            pairs.append(chart_log_ws.cell(1, index).value)
+
+        while True:
+            changes = []
+
+            row_count = self.st_table.rowCount()
+            
+            for pair in pairs:
+                change = ''
+                for index in range(row_count):
+                    item = self.st_table.item(index, 0)
+
+                    if item:
+                        if item.text() == pair:
+                            change_item = self.st_table.item(index, 1)
+
+                            if change_item:
+                                change = change_item.text()
+                            else:
+                                change = ''
+                                
+                            break
+
+                changes.append(change)
+
+            current_datetime = datetime.now()
+            current_date = current_datetime.strftime('%Y-%m-%d')
+            current_time = current_datetime.strftime('%H:%M:%S')
+
+            row = [current_date, current_time]
+            row += changes
+
+            chart_log_ws.append(row)
+            chart_log_wb.save('Chart Data Log.xlsx')
+
+            sleep(60)
 
 class Pricer(QObject):
     progress = pyqtSignal(dict)
@@ -167,9 +218,6 @@ class Webhook(QObject):
 class Bot(QObject):
     progress = pyqtSignal(list, list, bool)
     finished = pyqtSignal()
-    is_mt_closing = False
-    is_st_closing = False
-    is_opening = False
 
     close_list = []
     open_list = []
@@ -248,48 +296,57 @@ class Bot(QObject):
         self.progress.emit(['Loading finished!'], [0], False)
 
         while True:
-            # try:
-            if not self.is_opening:
-                if not self.is_mt_closing and not self.is_st_closing:
-                    self.progress.emit(['Extracting change...'], [0], False)
+            if len(self.close_list) > 0:
+                self.close_list_buff = self.close_list.copy()
+                self.close_list = []
 
-                    self.extract(driver)
-                    sleep(10)
-                else:
+                if len(self.open_list) > 0:
+                    self.open_list_buff = self.open_list.copy()
+                    self.open_list = []
+
+                print('Current close buff', self.close_list_buff)
+                print('Current open buff', self.open_list_buff)
+                # print("Close list:", self.close_list_buff)
+
+                if len(self.close_list_buff) > 0:
                     self.progress.emit(["Closing pairs..."], [0], False)
-
                     self.closePair(driver)
 
-                    if self.is_mt_closing:
-                        self.is_mt_closing = False
-                    elif self.is_st_closing:
-                        self.is_st_closing = False
+                if len(self.open_list_buff) > 0:
+                    self.progress.emit(['Opening pairs...'], [0], False)
+                    self.openPair(driver)
 
-                    if is_single_sytem_activated:
-                        if not self.is_mt_closing and not self.is_st_closing:
-                            self.is_opening = True
+                self.close_list_buff = []
+                self.open_list_buff = []
+            
+                self.progress.emit(['Extracting change...'], [0], False)
             else:
-                self.progress.emit(['Opening pairs...'], [0], False)
-                self.openPair(driver)
-                self.is_opening = False
-            # except:
-            #     pass
+                self.progress.emit(['Extracting change...'], [0], False)
+
+                is_passed = False
+
+                while not is_passed:
+                    try:
+                        self.extract(driver)
+                        is_passed = True
+                    except:
+                        is_passed = False
+
+                sleep(10)
 
     def setOpen(self, pairs):
         self.open_list += pairs
+        print('Current open list', self.open_list)
 
-    def setClose(self, pairs, is_mt):
-        if is_mt:
-            self.is_mt_closing = True
-        else:
-            self.is_st_closing = True
-
+    def setClose(self, pairs):
         self.close_list += pairs
+        print('Current close list', self.close_list)
 
     def openPair(self, driver):
-        for index in range(len(self.open_list)):
-            pair = self.open_list[index]
-            pair_for_single_table = pair.replace('/', '')
+        for index in range(len(self.open_list_buff)):
+            pair = self.open_list_buff[index]
+            print('Opening', pair)
+            pair_for_single_table = pair.replace('/', '').replace('3S', '').replace('3L', '')
 
             row_count = self.single_system_table.rowCount()
 
@@ -298,8 +355,23 @@ class Bot(QObject):
 
                 if item:
                     if item.text() == pair_for_single_table:
-                        low = self.single_system_table.item(row_index, 8).text()
-                        high = self.single_system_table.item(row_index, 7).text()
+                        pair_for_current_price = pair.replace('/', '-')
+
+                        api_key = "62de0d8d5ce91e0001765393"
+                        api_secret = "234a6141-767e-4dd9-ac0f-7b2427c43958"
+                        api_passphrase = "richardapi"
+
+                        client = Client(api_key, api_secret, api_passphrase)
+
+                        c_price = float(client.get_ticker(pair_for_current_price)['price'])
+                        c_to_h_price = float(self.single_system_table.item(row_index, 5).text())
+                        grid_size = float(self.single_system_table.item(row_index, 6).text())
+
+                        h_price = c_price + (c_to_h_price * c_price)
+                        l_price = ((100 - grid_size) * 0.01) * h_price
+
+                        low = '{:.6f}'.format(l_price)
+                        high = '{:.6f}'.format(h_price)
                         grid = self.single_system_table.item(row_index, 3).text()
 
                         break
@@ -311,37 +383,50 @@ class Bot(QObject):
 
             try:
                 cross_button = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, '//button[@class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeLarge MJl9JyxF7DXg4KHqMyOg css-1gzpori"]')))
+                # cross_button.click()
                 driver.execute_script("arguments[0].click();", cross_button)
             except TimeoutException:
                 pass
 
-            new_bot_button = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, '//div[@data-test="bot-start-new-bot-button"]')))
+            new_bot_button = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, '//div[@data-test="bot-start-new-bot-button"]')))
+            # new_bot_button.click()
             driver.execute_script("arguments[0].click();", new_bot_button)
 
-            start_bot_button = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, '//div[@data-test="start-sbot"]')))
+            start_bot_button = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, '//div[@data-test="start-sbot"]')))
+            # start_bot_button.click()
             driver.execute_script("arguments[0].click();", start_bot_button)
 
-            exchange_button = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//button[@class="aQXLoSia4k1esjIDAFwW eNHVE8z4gnaP_uzDASJz MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButtonBase-root  css-pev4aq"]')))[0]
+            exchange_button = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.XPATH, '//button[@class="aQXLoSia4k1esjIDAFwW eNHVE8z4gnaP_uzDASJz MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButtonBase-root  css-pev4aq"]')))[0]
+            # ac = ActionChains(driver)
+            # ac.move_to_element(exchange_button)
+            # ac.click()
+            # ac.perform()
+            # exchange_button.click()
             driver.execute_script("arguments[0].click();", exchange_button)
 
-            search_exchange_input = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, '//input[@placeholder="Search by exchanges"]')))
+            search_exchange_input = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, '//input[@placeholder="Search by exchanges"]')))
             search_exchange_input.clear()
             search_exchange_input.send_keys('Kucoin')
 
-            found_exchange = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//div[@class="MuiTableRow-root Ww5Ht1SCZfv3zC5nQFwh GHjFMeuMOZ1mUTMsHpSZ rSbNWzKWzIJZjdD2kDng css-1gqug66"]')))[-1]
+            found_exchange = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.XPATH, '//div[@class="MuiTableRow-root Ww5Ht1SCZfv3zC5nQFwh GHjFMeuMOZ1mUTMsHpSZ rSbNWzKWzIJZjdD2kDng css-1gqug66"]')))[-1]
+            # found_exchange.click()
             driver.execute_script("arguments[0].click();", found_exchange)
+    
+            sleep(1)
 
-            select_pair_button = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//button[@class="aQXLoSia4k1esjIDAFwW eNHVE8z4gnaP_uzDASJz MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButtonBase-root  css-pev4aq"]')))[-1]
+            select_pair_button = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.XPATH, '//button[@class="aQXLoSia4k1esjIDAFwW eNHVE8z4gnaP_uzDASJz MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButtonBase-root  css-pev4aq"]')))[-1]
+            # select_pair_button.click()
             driver.execute_script("arguments[0].click();", select_pair_button)
 
-            search_pair_input = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, '//input[@placeholder="Search by pair"]')))
+            search_pair_input = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, '//input[@placeholder="Search by pair"]')))
             search_pair_input.clear()
             search_pair_input.send_keys(pair)
 
-            found_pair = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//div[@class="MuiTableRow-root Ww5Ht1SCZfv3zC5nQFwh GHjFMeuMOZ1mUTMsHpSZ rSbNWzKWzIJZjdD2kDng css-1gqug66"]')))[-1]
+            found_pair = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.XPATH, '//div[@class="MuiTableRow-root Ww5Ht1SCZfv3zC5nQFwh GHjFMeuMOZ1mUTMsHpSZ rSbNWzKWzIJZjdD2kDng css-1gqug66"]')))[-1]
+            # found_pair.click()
             driver.execute_script("arguments[0].click();", found_pair)
 
-            sleep(2)
+            sleep(1)
 
             input_items = driver.find_elements(By.XPATH, '//input[@class="text-input__input text-input__input_align_left MuiFilledInput-input MuiInputBase-input css-2bxn45"]')
 
@@ -349,43 +434,44 @@ class Bot(QObject):
             high_input = input_items[1]
             grid_input = input_items[3]
 
-            low_input.send_keys(Keys.BACKSPACE*10)
+            low_input.send_keys(Keys.CONTROL, 'a')
+            sleep(1)
+            low_input.send_keys(Keys.DELETE)
+            sleep(1)
             low_input.send_keys(low)
 
-            sleep(2)
-
-            high_input.send_keys(Keys.BACKSPACE*10)
+            high_input.send_keys(Keys.CONTROL, 'a')
+            sleep(1)
+            high_input.send_keys(Keys.DELETE)
+            sleep(1)
             high_input.send_keys(high)
 
-            sleep(2)
-
-            grid_input.send_keys(Keys.BACKSPACE*10)
+            grid_input.send_keys(Keys.CONTROL, 'a')
+            sleep(1)
+            grid_input.send_keys(Keys.DELETE)
+            sleep(1)
             grid_input.send_keys(grid)
 
-            sleep(2)
-
             investment_input = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, '//input[@class="text-input__input text-input__input_align_left MuiFilledInput-input MuiInputBase-input MuiInputBase-inputAdornedEnd css-ftr4jk"]')))
-            investment_input.send_keys(Keys.BACKSPACE*10)
+            investment_input.send_keys(Keys.CONTROL, 'a')
+            sleep(1)
+            investment_input.send_keys(Keys.DELETE)
+            sleep(1)
             investment_input.send_keys(str(self.investment))
 
-            sleep(5)
+            # try:
+            start_button = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, '//button[@data-test="bot-submit-button"]')))
+            # start_button.click()
+            driver.execute_script("arguments[0].click();", start_button)
+
+            confirm_button = driver.find_element(By.XPATH, '//button[@data-test="bot-preview-confirm-button"]')
+            # confirm_button.click()
+            driver.execute_script("arguments[0].click();", confirm_button)
 
             try:
-                start_button = driver.find_element(By.XPATH, '//button[@data-test="bot-submit-button"]')
-
-                driver.execute_script("arguments[0].click();", start_button)
-
-                confirm_button = driver.find_element(By.XPATH, '//button[@data-test="bot-preview-confirm-button"]')
-                driver.execute_script("arguments[0].click();", confirm_button)
-
-                last_confirm_button = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, '//button[@class="MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-fullWidth MuiButtonBase-root kfCCZxmzvmdlp8FzqoXs ahq3tnpG5tgfhHv_ZVqH UBErGT1mUPdqt3hep5VK yrzviWht7csBpZTWkae5 css-za2zm7"]')))
-                driver.execute_script("arguments[0].click();", last_confirm_button)
+                WebDriverWait(driver, 300).until(lambda s: s.find_element(By.XPATH, '//div[@class="vfOtxORs1c0oUEoFMKdP"]').text == 'Your bot has been started')
             except:
-                pass
-
-            sleep(5)
-
-        self.open_list = []
+                driver.refresh()
 
     def closePair(self, driver):
         while True:
@@ -395,29 +481,52 @@ class Bot(QObject):
                 pairs = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.CLASS_NAME, 'MuiTableRow-root')))[1:]
             except TimeoutException:
                 pairs = []
-                
+            
             for pair in pairs:
                 is_closed = False
                 cells = pair.find_elements(By.CLASS_NAME, 'MuiTableCell-root')
 
                 name = cells[1].find_element(By.CLASS_NAME, 'two-row-cell').find_element(By.TAG_NAME, 'div').text.replace(' / ', '/')
 
-                for pair_name in self.close_list:
+                for pair_name in self.close_list_buff:
                     if name == pair_name:
-                        driver.execute_script("arguments[0].click();", cells[-1].find_elements(By.TAG_NAME, 'button')[-1])
-                        driver.execute_script("arguments[0].click();", WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, '//button[@class="aQXLoSia4k1esjIDAFwW zhVSsYrxjm8vd8ihxSUs MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButtonBase-root  css-pev4aq"]'))))
+                        print('Closing', name)
+                        # cells[-1].find_elements(By.TAG_NAME, 'button')[-1].click()
+                        # WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, '//button[@class="aQXLoSia4k1esjIDAFwW zhVSsYrxjm8vd8ihxSUs MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButtonBase-root  css-pev4aq"]'))).click()
+                        is_passed = False
 
-                        try:
-                            driver.execute_script("arguments[0].click();", WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//li[@class="yh3uTjDDJTvbuAZD9i_M jj5mPys2QhRB6omDdQP4 MuiMenuItem-root MuiMenuItem-gutters MuiButtonBase-root css-17cm1p2"]')))[1])
-                        except TimeoutException:
-                            driver.execute_script("arguments[0].click();", WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//li[@class="yh3uTjDDJTvbuAZD9i_M jj5mPys2QhRB6omDdQP4 MuiMenuItem-root MuiMenuItem-gutters MuiButtonBase-root css-17cm1p2"]')))[0])
+                        while not is_passed:
+                            try:
+                                driver.execute_script("arguments[0].click();", cells[-1].find_elements(By.TAG_NAME, 'button')[-1])
+                                driver.execute_script("arguments[0].click();", WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, '//button[@class="aQXLoSia4k1esjIDAFwW zhVSsYrxjm8vd8ihxSUs MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButtonBase-root  css-pev4aq"]'))))
+                                is_passed = True
+                            except TimeoutException:
+                                is_passed = False
+
+                        # try:
+                        close_options = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//li[@class="yh3uTjDDJTvbuAZD9i_M jj5mPys2QhRB6omDdQP4 MuiMenuItem-root MuiMenuItem-gutters MuiButtonBase-root css-17cm1p2"]')))
+
+                        if len(close_options) > 1:
+                            driver.execute_script("arguments[0].click();", close_options[1])
+                            # close_options[1].click()
                         
-                        confirm = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, '//button[@data-test="bot-preview-confirm-button"]')))
+                        if len(close_options) == 1:
+                            driver.execute_script("arguments[0].click();", close_options[0])
+                            # close_options[0].click()
+                            # driver.execute_script("arguments[0].click();", WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//li[@class="yh3uTjDDJTvbuAZD9i_M jj5mPys2QhRB6omDdQP4 MuiMenuItem-root MuiMenuItem-gutters MuiButtonBase-root css-17cm1p2"]')))[1])
+                        # except IndexError:
+                        #     driver.execute_script("arguments[0].click();", WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//li[@class="yh3uTjDDJTvbuAZD9i_M jj5mPys2QhRB6omDdQP4 MuiMenuItem-root MuiMenuItem-gutters MuiButtonBase-root css-17cm1p2"]')))[0])
+                        
+                        confirm = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, '//button[@data-test="bot-preview-confirm-button"]')))
+                        # confirm.click()
                         driver.execute_script("arguments[0].click();", confirm)
 
                         is_closed = True
                         
-                        sleep(5)
+                        try:
+                            WebDriverWait(driver, 300).until(lambda s: s.find_element(By.XPATH, '//div[@class="vfOtxORs1c0oUEoFMKdP"]').text == 'Your bot has been stopped')
+                        except:
+                            driver.refresh()
 
                         break
 
@@ -425,7 +534,6 @@ class Bot(QObject):
                     break
 
             if is_closed:
-                driver.refresh()
                 continue
             else:
                 break
@@ -476,15 +584,15 @@ class Ui(QtWidgets.QMainWindow):
 
         self.statusBar.showMessage('Loading...')
 
-        # self.bot_thread = QThread(self)
-        # self.bot_worker = Bot(self.single_system_table, self.single_system_inv)
-        # self.bot_worker.moveToThread(self.bot_thread)
-        # self.bot_thread.started.connect(self.bot_worker.run)
-        # self.bot_worker.progress.connect(self.updateStatus)
-        # self.bot_worker.finished.connect(self.bot_thread.quit)
-        # self.bot_worker.finished.connect(self.bot_worker.deleteLater)
-        # self.bot_thread.finished.connect(self.bot_thread.deleteLater)
-        # self.bot_thread.start()
+        self.bot_thread = QThread(self)
+        self.bot_worker = Bot(self.single_system_table, self.single_system_inv)
+        self.bot_worker.moveToThread(self.bot_thread)
+        self.bot_thread.started.connect(self.bot_worker.run)
+        self.bot_worker.progress.connect(self.updateStatus)
+        self.bot_worker.finished.connect(self.bot_thread.quit)
+        self.bot_worker.finished.connect(self.bot_worker.deleteLater)
+        self.bot_thread.finished.connect(self.bot_thread.deleteLater)
+        self.bot_thread.start()
 
         self.webhook_thread = QThread(self)
         self.webhook_worker = Webhook()
@@ -504,6 +612,12 @@ class Ui(QtWidgets.QMainWindow):
         self.pricer_worker.finished.connect(self.pricer_worker.deleteLater)
         self.pricer_thread.finished.connect(self.pricer_thread.deleteLater)
         self.pricer_thread.start()
+
+        self.chart_logger_thread = QThread(self)
+        self.chart_logger_worker = ChartLogger(self.st_table)
+        self.chart_logger_worker.moveToThread(self.chart_logger_thread)
+        self.chart_logger_thread.started.connect(self.chart_logger_worker.run)
+        self.chart_logger_thread.start()
 
         self.show()
 
@@ -556,9 +670,7 @@ class Ui(QtWidgets.QMainWindow):
             self.statusBar.showMessage(' '.join(status))
 
             self.updateMT(message, value)
-
-            if not self.bot_worker.is_mt_closing:
-                self.updateST(message, value)
+            self.updateST(message, value)
 
     def updateSignal(self, signal: dict):
         keys = signal.keys()
@@ -583,7 +695,7 @@ class Ui(QtWidgets.QMainWindow):
                         close_list.append(key.replace('USDT', '3L/USDT'))
                         open_list.append(key.replace('USDT', '3S/USDT'))
 
-            self.last_signal = signal
+                self.last_signal[key] = signal[key]
 
             # Search single system table
             row_count = self.single_system_table.rowCount()
@@ -626,6 +738,11 @@ class Ui(QtWidgets.QMainWindow):
                                         self.st_table.setItem(st_row_index, 2, QtWidgets.QTableWidgetItem(tp))
                                         self.st_table.setItem(st_row_index, 3, QtWidgets.QTableWidgetItem(sl))
 
+                                        current_datetime = datetime.now()
+                                        current_date_time = current_datetime.strftime('%Y-%m-%d %H:%M:%S')
+
+                                        self.st_table.setItem(st_row_index, 6, QtWidgets.QTableWidgetItem(current_date_time))
+
                                         break
 
                                     if not item:
@@ -637,6 +754,11 @@ class Ui(QtWidgets.QMainWindow):
                                         self.st_table.setItem(st_row_index, 2, QtWidgets.QTableWidgetItem(tp))
                                         self.st_table.setItem(st_row_index, 3, QtWidgets.QTableWidgetItem(sl))
 
+                                        current_datetime = datetime.now()
+                                        current_date_time = current_datetime.strftime('%Y-%m-%d %H:%M:%S')
+
+                                        self.st_table.setItem(st_row_index, 6, QtWidgets.QTableWidgetItem(current_date_time))
+
                                         break
 
                             # Update single system table state
@@ -647,8 +769,33 @@ class Ui(QtWidgets.QMainWindow):
                                 self.single_system_table.item(row_index, 1).setBackground(QColor(255, 255, 255))
                                 self.single_system_table.item(row_index, 2).setBackground(QColor(255, 0, 0))
 
-            # self.bot_worker.setClose(close_list, False)
-            # self.bot_worker.setOpen(open_list)
+            for pair in close_list:
+                st_table_row_count = self.st_table.rowCount()
+
+                for row_index in range(st_table_row_count):
+                    item = self.st_table.item(row_index, 0)
+
+                    if item:
+                        if item.text() == pair:
+                            log_data = [pair.replace('/', ''), 'single']
+
+                            current_datetime = datetime.now()
+                            current_date_time = current_datetime.strftime('%Y-%m-%d %H:%M:%S')
+
+                            open_date_time = self.st_table.item(row_index, 6).text()
+
+                            change = self.st_table.item(row_index, 1).text()
+
+                            log_data.append(open_date_time)
+                            log_data.append(current_date_time)
+                            log_data.append(change)
+                            log_data.append('TV Signal')
+
+                            ws.append(log_data)
+                            wb.save('Closed Trades.xlsx')
+
+            self.bot_worker.setClose(close_list)
+            self.bot_worker.setOpen(open_list)
 
     def clearMTChart(self):
         global track
@@ -827,11 +974,11 @@ class Ui(QtWidgets.QMainWindow):
 
                                 current_datetime = datetime.now()
 
-                                current_date = current_datetime.strftime('%Y-%m-%d')
-                                current_time = current_datetime.strftime('%H:%M:%S')
+                                current_date_time = current_datetime.strftime('%Y-%m-%d %H:%M:%S')
+                                open_date_time = self.mt_table.item(row_index, 2).text()
 
-                                log_data.append(current_date)
-                                log_data.append(current_time)
+                                log_data.append(open_date_time)
+                                log_data.append(current_date_time)
                                 log_data.append(float(self.mt_table.item(row_index, 1).text()))
                                 log_data.append("Hit SL")
                                 log_data.append(tp)
@@ -844,7 +991,7 @@ class Ui(QtWidgets.QMainWindow):
                                 for col_index in range(2):
                                     self.mt_table.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(''))
 
-                self.bot_worker.setClose(existing_pairs, True)
+                self.bot_worker.setClose(existing_pairs)
             elif collective >= tp:
                 alarm()
                 for pair in existing_pairs:
@@ -856,11 +1003,11 @@ class Ui(QtWidgets.QMainWindow):
 
                                 current_datetime = datetime.now()
 
-                                current_date = current_datetime.strftime('%Y-%m-%d')
-                                current_time = current_datetime.strftime('%H:%M:%S')
+                                current_date_time = current_datetime.strftime('%Y-%m-%d %H:%M:%S')
+                                open_date_time = self.mt_table.item(row_index, 2).text()
 
-                                log_data.append(current_date)
-                                log_data.append(current_time)
+                                log_data.append(open_date_time)
+                                log_data.append(current_date_time)
                                 log_data.append(float(self.mt_table.item(row_index, 1).text()))
                                 log_data.append("Hit TP")
                                 log_data.append(tp)
@@ -873,7 +1020,7 @@ class Ui(QtWidgets.QMainWindow):
                                 for col_index in range(2):
                                     self.mt_table.setItem(row_index, col_index, QtWidgets.QTableWidgetItem(''))
 
-                self.bot_worker.setClose(existing_pairs, True)
+                self.bot_worker.setClose(existing_pairs)
 
     def updateST(self, pairs, changes):
         row_count = self.st_table.rowCount()
@@ -912,6 +1059,8 @@ class Ui(QtWidgets.QMainWindow):
                 else:
                     for col_index in range(4):
                         self.st_table.setItem(row_index, col_index, None)
+
+                    self.st_table.setItem(row_index, 6, None)
                     
                     self.st_table.setCellWidget(row_index, 4, None)
                     self.st_table.setCellWidget(row_index, 5, None)
@@ -929,11 +1078,11 @@ class Ui(QtWidgets.QMainWindow):
 
                             current_datetime = datetime.now()
 
-                            current_date = current_datetime.strftime('%Y-%m-%d')
-                            current_time = current_datetime.strftime('%H:%M:%S')
+                            current_date_time = current_datetime.strftime('%Y-%m-%d %H:%M:%S')
+                            open_date_time = self.st_table.item(row_index, 6).text()
 
-                            log_data.append(current_date)
-                            log_data.append(current_time)
+                            log_data.append(open_date_time)
+                            log_data.append(current_date_time)
 
                             change = float(self.st_table.item(row_index, 1).text())
                             tp = float(self.st_table.item(row_index, 2).text())
@@ -959,7 +1108,7 @@ class Ui(QtWidgets.QMainWindow):
                             self.st_table.setCellWidget(row_index, 4, None)
                             self.st_table.setCellWidget(row_index, 5, None)
 
-            self.bot_worker.setClose(delete_pairs, False)
+            self.bot_worker.setClose(delete_pairs)
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)

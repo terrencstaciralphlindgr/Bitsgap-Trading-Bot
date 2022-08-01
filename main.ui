@@ -115,10 +115,10 @@
         <number>50</number>
        </property>
        <property name="columnCount">
-        <number>6</number>
+        <number>7</number>
        </property>
        <attribute name="horizontalHeaderDefaultSectionSize">
-        <number>85</number>
+        <number>72</number>
        </attribute>
        <attribute name="verticalHeaderDefaultSectionSize">
         <number>25</number>
@@ -206,6 +206,11 @@
          <string>Clear</string>
         </property>
        </column>
+       <column>
+        <property name="text">
+         <string>Open Time</string>
+        </property>
+       </column>
       </widget>
      </widget>
      <widget class="QGroupBox" name="groupBox">
@@ -251,7 +256,7 @@
         <number>50</number>
        </property>
        <property name="columnCount">
-        <number>2</number>
+        <number>3</number>
        </property>
        <attribute name="horizontalHeaderVisible">
         <bool>true</bool>
@@ -260,7 +265,7 @@
         <bool>false</bool>
        </attribute>
        <attribute name="horizontalHeaderDefaultSectionSize">
-        <number>115</number>
+        <number>76</number>
        </attribute>
        <attribute name="horizontalHeaderHighlightSections">
         <bool>true</bool>
@@ -329,6 +334,11 @@
        <column>
         <property name="text">
          <string>Change %</string>
+        </property>
+       </column>
+       <column>
+        <property name="text">
+         <string>Open Time</string>
         </property>
        </column>
       </widget>
